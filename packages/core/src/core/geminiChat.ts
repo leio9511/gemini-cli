@@ -32,6 +32,7 @@ import {
   ApiResponseEvent,
 } from '../telemetry/types.js';
 import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
+import { findMcpServerWithCapability, loadState } from '../mcp/mcp-client.js';
 
 /**
  * Returns true if the response is valid, false otherwise.
@@ -268,6 +269,17 @@ export class GeminiChat {
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
 
+    const amuServer = findMcpServerWithCapability(this.config, 'amu/loadState');
+    if (amuServer) {
+      const agentInfo = await loadState(amuServer);
+      if (agentInfo && agentInfo.parts) {
+        const lastContent = requestContents[requestContents.length - 1];
+        if (lastContent.parts) {
+          lastContent.parts.push(...agentInfo.parts);
+        }
+      }
+    }
+
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
 
     const startTime = Date.now();
@@ -376,6 +388,18 @@ export class GeminiChat {
     await this.sendPromise;
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
+
+    const amuServer = findMcpServerWithCapability(this.config, 'amu/loadState');
+    if (amuServer) {
+      const agentInfo = await loadState(amuServer);
+      if (agentInfo && agentInfo.parts) {
+        const lastContent = requestContents[requestContents.length - 1];
+        if (lastContent.parts) {
+          lastContent.parts.push(...agentInfo.parts);
+        }
+      }
+    }
+
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
 
     const startTime = Date.now();

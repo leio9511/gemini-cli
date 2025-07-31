@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   Content,
@@ -13,8 +19,9 @@ import {
   GenerateContentResponse,
 } from '@google/genai';
 import { GeminiChat } from './geminiChat.js';
-import { Config } from '../config/config.js';
+import { Config, MCPServerConfig } from '../config/config.js';
 import { setSimulate429 } from '../utils/testUtils.js';
+import * as mcpClient from '../mcp/mcp-client.js';
 
 // Mocks
 const mockModelsModule = {
@@ -24,6 +31,11 @@ const mockModelsModule = {
   embedContent: vi.fn(),
   batchEmbedContents: vi.fn(),
 } as unknown as Models;
+
+vi.mock('../mcp/mcp-client.js', () => ({
+  findMcpServerWithCapability: vi.fn(),
+  loadState: vi.fn(),
+}));
 
 describe('GeminiChat', () => {
   let chat: GeminiChat;
@@ -116,6 +128,106 @@ describe('GeminiChat', () => {
         contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
         config: {},
       });
+    });
+  });
+
+  describe('AMU Integration', () => {
+    it('should append agent state to the request when AMU server is found', async () => {
+      const serverConfig = new MCPServerConfig();
+      const agentState: Content = {
+        role: 'user',
+        parts: [{ text: 'agent state' }],
+      };
+      vi.mocked(mcpClient.findMcpServerWithCapability).mockReturnValue(
+        serverConfig,
+      );
+      vi.mocked(mcpClient.loadState).mockResolvedValue(agentState);
+
+      const response = {
+        candidates: [
+          { content: { parts: [{ text: 'response' }], role: 'model' } },
+        ],
+      } as GenerateContentResponse;
+      vi.mocked(mockModelsModule.generateContent).mockResolvedValue(response);
+
+      await chat.sendMessage({ message: 'hello' }, 'prompt-id-1');
+
+      const expectedContents: Content[] = [
+        { role: 'user', parts: [{ text: 'hello' }, { text: 'agent state' }] },
+      ];
+
+      expect(mcpClient.findMcpServerWithCapability).toHaveBeenCalledWith(
+        mockConfig,
+        'amu/loadState',
+      );
+      expect(mcpClient.loadState).toHaveBeenCalledWith(serverConfig);
+      expect(mockModelsModule.generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expectedContents,
+        }),
+      );
+    });
+
+    it('should not modify contents if no AMU server is found', async () => {
+      vi.mocked(mcpClient.findMcpServerWithCapability).mockReturnValue(
+        undefined,
+      );
+
+      const response = {
+        candidates: [
+          { content: { parts: [{ text: 'response' }], role: 'model' } },
+        ],
+      } as GenerateContentResponse;
+      vi.mocked(mockModelsModule.generateContent).mockResolvedValue(response);
+
+      await chat.sendMessage({ message: 'hello' }, 'prompt-id-1');
+
+      const expectedContents: Content[] = [
+        { role: 'user', parts: [{ text: 'hello' }] },
+      ];
+
+      expect(mcpClient.findMcpServerWithCapability).toHaveBeenCalledWith(
+        mockConfig,
+        'amu/loadState',
+      );
+      expect(mcpClient.loadState).not.toHaveBeenCalled();
+      expect(mockModelsModule.generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expectedContents,
+        }),
+      );
+    });
+
+    it('should not modify contents if AMU server returns no state', async () => {
+      const serverConfig = new MCPServerConfig();
+      vi.mocked(mcpClient.findMcpServerWithCapability).mockReturnValue(
+        serverConfig,
+      );
+      vi.mocked(mcpClient.loadState).mockResolvedValue(undefined);
+
+      const response = {
+        candidates: [
+          { content: { parts: [{ text: 'response' }], role: 'model' } },
+        ],
+      } as GenerateContentResponse;
+      vi.mocked(mockModelsModule.generateContent).mockResolvedValue(response);
+
+      await chat.sendMessage({ message: 'hello' }, 'prompt-id-1');
+
+      const expectedContents: Content[] = [
+        { role: 'user', parts: [{ text: 'hello' }] },
+      ];
+
+      expect(mcpClient.findMcpServerWithCapability).toHaveBeenCalledWith(
+        mockConfig,
+        'amu/loadState',
+      );
+      expect(mcpClient.loadState).toHaveBeenCalledWith(serverConfig);
+      expect(mockModelsModule.generateContent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: expectedContents,
+        }),
+      );
     });
   });
 

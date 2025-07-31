@@ -122,6 +122,8 @@ export class MCPServerConfig {
     // OAuth configuration
     readonly oauth?: MCPOAuthConfig,
     readonly authProviderType?: AuthProviderType,
+    // Capabilities
+    readonly capabilities?: Record<string, unknown>,
   ) {}
 }
 
