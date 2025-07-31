@@ -380,13 +380,19 @@ export async function connectAndDiscover(
       };
       await discoverPrompts(mcpServerName, mcpClient, promptRegistry);
 
-      const tools = await discoverTools(
+      const { tools, capabilities } = await discoverTools(
         mcpServerName,
         mcpServerConfig,
         mcpClient,
       );
       for (const tool of tools) {
         toolRegistry.registerTool(tool);
+      }
+      if (capabilities) {
+        // This is a bit of a hack, but it's the easiest way to
+        // make the capabilities available to the rest of the system.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mcpServerConfig as any).capabilities = capabilities;
       }
     } catch (error) {
       mcpClient.close();
@@ -417,10 +423,14 @@ export async function discoverTools(
   mcpServerName: string,
   mcpServerConfig: MCPServerConfig,
   mcpClient: Client,
-): Promise<DiscoveredMCPTool[]> {
+): Promise<{
+  tools: DiscoveredMCPTool[];
+  capabilities: Record<string, unknown> | undefined;
+}> {
   try {
     const mcpCallableTool = mcpToTool(mcpClient);
-    const tool = await mcpCallableTool.tool();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tool = (await mcpCallableTool.tool()) as any;
 
     if (!Array.isArray(tool.functionDeclarations)) {
       throw new Error(`Server did not return valid function declarations.`);
@@ -444,7 +454,7 @@ export async function discoverTools(
         ),
       );
     }
-    return discoveredTools;
+    return { tools: discoveredTools, capabilities: tool.capabilities };
   } catch (error) {
     throw new Error(`Error discovering tools: ${error}`);
   }

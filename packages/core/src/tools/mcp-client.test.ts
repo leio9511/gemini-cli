@@ -45,9 +45,9 @@ describe('mcp-client', () => {
         }),
       } as unknown as GenAiLib.CallableTool);
 
-      const tools = await discoverTools('test-server', {}, mockedClient);
+      const result = await discoverTools('test-server', {}, mockedClient);
 
-      expect(tools.length).toBe(1);
+      expect(result.tools.length).toBe(1);
       expect(mockedMcpToTool).toHaveBeenCalledOnce();
     });
   });

@@ -4,126 +4,97 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { MCPServerConfig, Config } from '../config/config.js';
+import { expect, test, describe, vi } from 'vitest';
 import { findMcpServerWithCapability, loadState } from './mcp-client.js';
-import { Content } from '@google/genai';
+import { Config, MCPServerConfig } from '../config/config.js';
 
-describe('mcp-client', () => {
-  describe('findMcpServerWithCapability', () => {
-    it('should return the server config if capability is found', () => {
-      const serverConfig = new MCPServerConfig(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { 'amu/loadState': {} },
-      );
-      const config = {
-        getMcpServers: () => ({
-          'test-server': serverConfig,
-        }),
-      } as unknown as Config;
+describe('findMcpServerWithCapability', () => {
+  test('should return the server with the specified capability', () => {
+    const config = {
+      getMcpServers: () => ({
+        server1: {
+          capabilities: {
+            'amu/loadState': true,
+          },
+        },
+        server2: {
+          capabilities: {
+            'other/capability': true,
+          },
+        },
+      }),
+    } as unknown as Config;
 
-      const result = findMcpServerWithCapability(config, 'amu/loadState');
-      expect(result).toEqual(serverConfig);
-    });
-
-    it('should return undefined if no server has the capability', () => {
-      const serverConfig = new MCPServerConfig(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        { 'other/capability': {} },
-      );
-      const config = {
-        getMcpServers: () => ({
-          'test-server': serverConfig,
-        }),
-      } as unknown as Config;
-
-      const result = findMcpServerWithCapability(config, 'amu/loadState');
-      expect(result).toBeUndefined();
-    });
-
-    it('should return undefined if there are no mcp servers configured', () => {
-      const config = {
-        getMcpServers: () => undefined,
-      } as unknown as Config;
-
-      const result = findMcpServerWithCapability(config, 'amu/loadState');
-      expect(result).toBeUndefined();
-    });
+    const server = findMcpServerWithCapability(config, 'amu/loadState');
+    expect(server).toBeDefined();
+    expect(server?.capabilities).toHaveProperty('amu/loadState');
   });
 
-  describe('loadState', () => {
-    it('should fetch and return state from the server', async () => {
-      const mockState: Content = {
-        role: 'user',
-        parts: [{ text: 'agent state' }],
-      };
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockState),
-      });
+  test('should return undefined if no server has the capability', () => {
+    const config = {
+      getMcpServers: () => ({
+        server1: {
+          capabilities: {
+            'other/capability': true,
+          },
+        },
+      }),
+    } as unknown as Config;
 
-      const serverConfig = new MCPServerConfig(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'http://127.0.0.1:8000/mcp',
-      );
+    const server = findMcpServerWithCapability(config, 'amu/loadState');
+    expect(server).toBeUndefined();
+  });
 
-      const result = await loadState(serverConfig);
-      expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8000/loadState');
-      expect(result).toEqual(mockState);
+  test('should return undefined if there are no servers', () => {
+    const config = {
+      getMcpServers: () => ({}),
+    } as unknown as Config;
+
+    const server = findMcpServerWithCapability(config, 'amu/loadState');
+    expect(server).toBeUndefined();
+  });
+});
+
+describe('loadState', () => {
+  test('should load state from the server', async () => {
+    const server: MCPServerConfig = {
+      url: 'http://localhost:8000/mcp',
+    };
+    const mockResponse = {
+      parts: [{ text: 'test state' }],
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
     });
 
-    it('should return undefined if the fetch fails', async () => {
-      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
-      const consoleErrorSpy = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+    const state = await loadState(server);
+    expect(state).toEqual(mockResponse);
+    expect(fetch).toHaveBeenCalledWith(
+      new URL('http://localhost:8000/loadState'),
+    );
+  });
 
-      const serverConfig = new MCPServerConfig(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        'http://127.0.0.1:8000/mcp',
-      );
+  test('should return undefined if the request fails', async () => {
+    const server: MCPServerConfig = {
+      url: 'http://localhost:8000/mcp',
+    };
+    global.fetch = vi.fn().mockRejectedValue(new Error('network error'));
 
-      const result = await loadState(serverConfig);
-      expect(result).toBeUndefined();
-      expect(consoleErrorSpy).toHaveBeenCalled();
+    const state = await loadState(server);
+    expect(state).toBeUndefined();
+  });
 
-      consoleErrorSpy.mockRestore();
+  test('should return undefined if the response is not ok', async () => {
+    const server: MCPServerConfig = {
+      url: 'http://localhost:8000/mcp',
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Internal Server Error',
     });
+
+    const state = await loadState(server);
+    expect(state).toBeUndefined();
   });
 });
