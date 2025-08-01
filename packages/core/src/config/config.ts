@@ -149,6 +149,7 @@ export interface ConfigParameters {
   sandbox?: SandboxConfig;
   targetDir: string;
   debugMode: boolean;
+  dumpChat?: boolean;
   question?: string;
   fullContext?: boolean;
   coreTools?: string[];
@@ -197,6 +198,7 @@ export class Config {
   private readonly sandbox: SandboxConfig | undefined;
   private readonly targetDir: string;
   private readonly debugMode: boolean;
+  private readonly dumpChat: boolean;
   private readonly question: string | undefined;
   private readonly fullContext: boolean;
   private readonly coreTools: string[] | undefined;
@@ -251,6 +253,7 @@ export class Config {
     this.sandbox = params.sandbox;
     this.targetDir = path.resolve(params.targetDir);
     this.debugMode = params.debugMode;
+    this.dumpChat = params.dumpChat ?? false;
     this.question = params.question;
     this.fullContext = params.fullContext ?? false;
     this.coreTools = params.coreTools;
@@ -404,6 +407,9 @@ export class Config {
 
   getDebugMode(): boolean {
     return this.debugMode;
+  }
+  getDumpChat(): boolean {
+    return this.dumpChat;
   }
   getQuestion(): string | undefined {
     return this.question;

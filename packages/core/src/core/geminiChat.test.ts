@@ -49,6 +49,7 @@ describe('GeminiChat', () => {
       getTelemetryLogPromptsEnabled: () => true,
       getUsageStatisticsEnabled: () => true,
       getDebugMode: () => false,
+      getDumpChat: () => false,
       getContentGeneratorConfig: () => ({
         authType: 'oauth-personal',
         model: 'test-model',

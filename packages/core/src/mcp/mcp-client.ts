@@ -43,12 +43,13 @@ export function findMcpServerWithCapability(
 export async function loadState(
   server: MCPServerConfig,
 ): Promise<Content | undefined> {
-  if (!server.url) {
+  const baseUrl = server.httpUrl || server.url;
+  if (!baseUrl) {
     return;
   }
   // The discovery URL is http://127.0.0.1:8000/mcp, and the loadState
   // URL is http://127.0.0.1:8000/loadState.
-  const url = new URL(server.url);
+  const url = new URL(baseUrl);
   url.pathname = '/loadState';
 
   try {

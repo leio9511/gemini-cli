@@ -282,6 +282,13 @@ export class GeminiChat {
 
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
 
+    if (this.config.getDumpChat()) {
+      console.log(
+        '[DUMP CHAT] Sending to LLM:',
+        JSON.stringify(requestContents, null, 2),
+      );
+    }
+
     const startTime = Date.now();
     let response: GenerateContentResponse;
 
@@ -401,6 +408,13 @@ export class GeminiChat {
     }
 
     this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
+
+    if (this.config.getDumpChat()) {
+      console.log(
+        '[DUMP CHAT] Sending to LLM:',
+        JSON.stringify(requestContents, null, 2),
+      );
+    }
 
     const startTime = Date.now();
 

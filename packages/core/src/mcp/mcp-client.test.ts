@@ -56,7 +56,7 @@ describe('findMcpServerWithCapability', () => {
 });
 
 describe('loadState', () => {
-  test('should load state from the server', async () => {
+  test('should load state from the server using url', async () => {
     const server: MCPServerConfig = {
       url: 'http://localhost:8000/mcp',
     };
@@ -72,6 +72,25 @@ describe('loadState', () => {
     expect(state).toEqual(mockResponse);
     expect(fetch).toHaveBeenCalledWith(
       new URL('http://localhost:8000/loadState'),
+    );
+  });
+
+  test('should load state from the server using httpUrl', async () => {
+    const server: MCPServerConfig = {
+      httpUrl: 'http://localhost:8080/mcp',
+    };
+    const mockResponse = {
+      parts: [{ text: 'test state http' }],
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockResponse),
+    });
+
+    const state = await loadState(server);
+    expect(state).toEqual(mockResponse);
+    expect(fetch).toHaveBeenCalledWith(
+      new URL('http://localhost:8080/loadState'),
     );
   });
 

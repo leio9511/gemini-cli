@@ -12,14 +12,16 @@ import {
   isEnabled,
   discoverTools,
   discoverPrompts,
+  connectAndDiscover,
 } from './mcp-client.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import * as SdkClientStdioLib from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as ClientLib from '@modelcontextprotocol/sdk/client/index.js';
 import * as GenAiLib from '@google/genai';
 import { GoogleCredentialProvider } from '../mcp/google-auth-provider.js';
-import { AuthProviderType } from '../config/config.js';
+import { AuthProviderType, MCPServerConfig } from '../config/config.js';
 import { PromptRegistry } from '../prompts/prompt-registry.js';
+import { ToolRegistry } from './tool-registry.js';
 
 vi.mock('@modelcontextprotocol/sdk/client/stdio.js');
 vi.mock('@modelcontextprotocol/sdk/client/index.js');
@@ -32,9 +34,72 @@ describe('mcp-client', () => {
     vi.restoreAllMocks();
   });
 
+  describe('connectAndDiscover', () => {
+    it('should discover tools and attach capabilities to the server config', async () => {
+      const serverConfig: MCPServerConfig = {
+        httpUrl: 'http://localhost:8000',
+      };
+      const toolRegistry = {
+        registerTool: vi.fn(),
+      } as unknown as ToolRegistry;
+      const promptRegistry = {
+        registerPrompt: vi.fn(),
+      } as unknown as PromptRegistry;
+
+      const mockCapabilities = { 'amu/loadState': true };
+
+      // Simulate the SDK limitation: mcpToTool returns a tool without capabilities
+      vi.mocked(GenAiLib.mcpToTool).mockReturnValue({
+        tool: () =>
+          Promise.resolve({
+            functionDeclarations: [{ name: 'testTool' }],
+            // No capabilities here
+          }),
+      } as unknown as GenAiLib.CallableTool);
+
+      // Mock the raw client response to include capabilities
+      const mockClient = {
+        connect: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn(),
+        request: vi.fn().mockImplementation((request) => {
+          if (request.method === 'tools/list') {
+            return Promise.resolve({
+              tools: [{ functionDeclarations: [{ name: 'testTool' }] }],
+              capabilities: mockCapabilities,
+            });
+          }
+          if (request.method === 'prompts/list') {
+            return Promise.resolve({ prompts: [] });
+          }
+          return Promise.resolve({});
+        }),
+        onerror: vi.fn(),
+      } as unknown as ClientLib.Client;
+
+      // Mock the factory that creates the client
+      vi.spyOn(ClientLib, 'Client').mockReturnValue(mockClient);
+
+      await connectAndDiscover(
+        'testServer',
+        serverConfig,
+        toolRegistry,
+        promptRegistry,
+        false,
+      );
+
+      expect(toolRegistry.registerTool).toHaveBeenCalledOnce();
+      expect(serverConfig.capabilities).toEqual(mockCapabilities);
+    });
+  });
+
   describe('discoverTools', () => {
     it('should discover tools', async () => {
-      const mockedClient = {} as unknown as ClientLib.Client;
+      const mockedClient = {
+        request: vi.fn().mockResolvedValue({
+          tools: [{ functionDeclarations: [{ name: 'testFunction' }] }],
+          capabilities: {},
+        }),
+      } as unknown as ClientLib.Client;
       const mockedMcpToTool = vi.mocked(GenAiLib.mcpToTool).mockReturnValue({
         tool: () => ({
           functionDeclarations: [

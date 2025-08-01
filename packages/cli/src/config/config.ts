@@ -42,6 +42,7 @@ export interface CliArgs {
   sandbox: boolean | string | undefined;
   sandboxImage: string | undefined;
   debug: boolean | undefined;
+  dumpChat: boolean | undefined;
   prompt: string | undefined;
   promptInteractive: string | undefined;
   allFiles: boolean | undefined;
@@ -100,6 +101,11 @@ export async function parseArguments(): Promise<CliArgs> {
       alias: 'd',
       type: 'boolean',
       description: 'Run in debug mode?',
+      default: false,
+    })
+    .option('dump-chat', {
+      type: 'boolean',
+      description: 'Dump chat contents to the console.',
       default: false,
     })
     .option('all-files', {
@@ -367,6 +373,7 @@ export async function loadCliConfig(
     sandbox: sandboxConfig,
     targetDir: process.cwd(),
     debugMode,
+    dumpChat: argv.dumpChat,
     question: argv.promptInteractive || argv.prompt || '',
     fullContext: argv.allFiles || argv.all_files || false,
     coreTools: settings.coreTools || undefined,

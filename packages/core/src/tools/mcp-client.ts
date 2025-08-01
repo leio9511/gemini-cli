@@ -33,6 +33,7 @@ import { MCPOAuthProvider } from '../mcp/oauth-provider.js';
 import { OAuthUtils } from '../mcp/oauth-utils.js';
 import { MCPOAuthTokenStorage } from '../mcp/oauth-token-storage.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { z } from 'zod';
 
 export const MCP_DEFAULT_TIMEOUT_MSEC = 10 * 60 * 1000; // default to 10 minutes
 
@@ -428,6 +429,20 @@ export async function discoverTools(
   capabilities: Record<string, unknown> | undefined;
 }> {
   try {
+    const toolListResponseSchema = z
+      .object({
+        capabilities: z.record(z.string(), z.unknown()).optional(),
+      })
+      .passthrough();
+
+    // HACK: The genai SDK's `mcpToTool` doesn't expose the raw
+    // `capabilities` object from the MCP response. We need to bypass it to
+    // get the capabilities, and then still use it to get the callable tool.
+    const rawResponse = await mcpClient.request(
+      { method: 'tools/list', params: {} },
+      toolListResponseSchema,
+    );
+
     const mcpCallableTool = mcpToTool(mcpClient);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tool = (await mcpCallableTool.tool()) as any;
@@ -454,7 +469,10 @@ export async function discoverTools(
         ),
       );
     }
-    return { tools: discoveredTools, capabilities: tool.capabilities };
+    return {
+      tools: discoveredTools,
+      capabilities: rawResponse.capabilities,
+    };
   } catch (error) {
     throw new Error(`Error discovering tools: ${error}`);
   }
