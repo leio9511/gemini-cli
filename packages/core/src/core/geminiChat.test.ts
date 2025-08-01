@@ -230,6 +230,71 @@ describe('GeminiChat', () => {
         }),
       );
     });
+
+    it('should NOT pollute chat history with AMU state', async () => {
+      const serverConfig = new MCPServerConfig();
+      const agentState: Content = {
+        role: 'user', // Role here doesn't matter, it's just for the data structure
+        parts: [{ text: 'AMU STATE' }],
+      };
+      vi.mocked(mcpClient.findMcpServerWithCapability).mockReturnValue(
+        serverConfig,
+      );
+      vi.mocked(mcpClient.loadState).mockResolvedValue(agentState);
+
+      const mockResponse = {
+        candidates: [
+          { content: { parts: [{ text: 'response' }], role: 'model' } },
+        ],
+      } as GenerateContentResponse;
+      vi.mocked(mockModelsModule.generateContent).mockResolvedValue(
+        mockResponse,
+      );
+
+      // 1. Send the first message
+      await chat.sendMessage({ message: 'first message' }, 'prompt-id-1');
+
+      // Verify the history does NOT contain the AMU state
+      const history = chat.getHistory();
+      expect(history.length).toBe(2);
+
+      const historyItem = history[0];
+      if (historyItem && historyItem.parts) {
+        expect(historyItem.parts).toEqual([{ text: 'first message' }]);
+        expect(historyItem.parts.length).toBe(1); // Critical check
+      }
+
+      // 2. Send a second message
+      await chat.sendMessage({ message: 'second message' }, 'prompt-id-2');
+
+      // Verify the request for the second message doesn't contain the old AMU state
+      const { calls } = vi.mocked(mockModelsModule.generateContent).mock;
+      expect(calls.length).toBe(2);
+      const secondCallContents = calls[1][0].contents as Content[];
+
+      // The history part of the request should be clean
+      const firstContent = secondCallContents[0];
+      if (firstContent && firstContent.parts) {
+        expect(firstContent.role).toBe('user');
+        expect(firstContent.parts).toEqual([{ text: 'first message' }]);
+        expect(firstContent.parts.length).toBe(1); // Critical check
+      }
+
+      const secondContent = secondCallContents[1];
+      if (secondContent) {
+        expect(secondContent.role).toBe('model');
+      }
+
+      // The new user message part of the request should have the fresh AMU state
+      const thirdContent = secondCallContents[2];
+      if (thirdContent && thirdContent.parts) {
+        expect(thirdContent.role).toBe('user');
+        expect(thirdContent.parts).toEqual([
+          { text: 'second message' },
+          { text: 'AMU STATE' },
+        ]);
+      }
+    });
   });
 
   describe('recordHistory', () => {

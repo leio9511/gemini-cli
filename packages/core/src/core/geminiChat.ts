@@ -269,23 +269,31 @@ export class GeminiChat {
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
 
+    // Create a deep copy to avoid mutating the original history objects.
+    const finalRequestContents = structuredClone(requestContents);
+
     const amuServer = findMcpServerWithCapability(this.config, 'amu/loadState');
     if (amuServer) {
       const agentInfo = await loadState(amuServer);
       if (agentInfo && agentInfo.parts) {
-        const lastContent = requestContents[requestContents.length - 1];
+        const lastContent =
+          finalRequestContents[finalRequestContents.length - 1];
         if (lastContent.parts) {
           lastContent.parts.push(...agentInfo.parts);
         }
       }
     }
 
-    this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
+    this._logApiRequest(
+      finalRequestContents,
+      this.config.getModel(),
+      prompt_id,
+    );
 
     if (this.config.getDumpChat()) {
       console.log(
         '[DUMP CHAT] Sending to LLM:',
-        JSON.stringify(requestContents, null, 2),
+        JSON.stringify(finalRequestContents, null, 2),
       );
     }
 
@@ -308,7 +316,7 @@ export class GeminiChat {
 
         return this.contentGenerator.generateContent({
           model: modelToUse,
-          contents: requestContents,
+          contents: finalRequestContents,
           config: { ...this.generationConfig, ...params.config },
         });
       };
@@ -396,23 +404,31 @@ export class GeminiChat {
     const userContent = createUserContent(params.message);
     const requestContents = this.getHistory(true).concat(userContent);
 
+    // Create a deep copy to avoid mutating the original history objects.
+    const finalRequestContents = structuredClone(requestContents);
+
     const amuServer = findMcpServerWithCapability(this.config, 'amu/loadState');
     if (amuServer) {
       const agentInfo = await loadState(amuServer);
       if (agentInfo && agentInfo.parts) {
-        const lastContent = requestContents[requestContents.length - 1];
+        const lastContent =
+          finalRequestContents[finalRequestContents.length - 1];
         if (lastContent.parts) {
           lastContent.parts.push(...agentInfo.parts);
         }
       }
     }
 
-    this._logApiRequest(requestContents, this.config.getModel(), prompt_id);
+    this._logApiRequest(
+      finalRequestContents,
+      this.config.getModel(),
+      prompt_id,
+    );
 
     if (this.config.getDumpChat()) {
       console.log(
         '[DUMP CHAT] Sending to LLM:',
-        JSON.stringify(requestContents, null, 2),
+        JSON.stringify(finalRequestContents, null, 2),
       );
     }
 
@@ -434,7 +450,7 @@ export class GeminiChat {
 
         return this.contentGenerator.generateContentStream({
           model: modelToUse,
-          contents: requestContents,
+          contents: finalRequestContents,
           config: { ...this.generationConfig, ...params.config },
         });
       };
