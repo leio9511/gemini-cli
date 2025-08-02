@@ -96,14 +96,92 @@ This new tool will replace the existing `replace` tool. It uses a hash for pre-c
     }
     ```
 
+#### 4.3. The LLM Agent's Workflow
+
+The LLM's instructions will be updated to use this new, more intelligent workflow.
+
+1.  **Goal:** Modify a file.
+2.  **Scan Context:** The LLM first scans its chat history for the target file, looking for the entry with the **highest `version` number**.
+3.  **Decide:**
+    *   **If a versioned entry is found:** The LLM uses the `content` and `sha256` from that entry to generate a `unified_diff` and call `safe_patch`. It does **not** call `read_file`.
+    *   **If no versioned entry is found:** The LLM knows it lacks safe context and its first action must be to call `read_file` to get it.
+4.  **Process Result:** The LLM always receives a `latest_file_state` object.
+    *   On success, it uses this new state for subsequent operations and can self-verify the change.
+    *   On a state mismatch failure, it uses the provided `latest_file_state` to immediately retry the patch, enabling rapid, single-turn recovery.
+
+### 5. Detailed Design & Implementation Plan
+
+This plan is based on the existing structure of the `gemini-cli` codebase.
+
+1.  **Introduce Session State Service:**
+    *   **Where:** Create a new service `packages/core/src/services/session-state-service.ts`.
+    *   **How:** This service will be a simple class responsible for managing the session-scoped version counter.
+        ```typescript
+        export class SessionStateService {
+          private versionCounter = 0;
+
+          public getNextVersion(): number {
+            this.versionCounter++;
+            return this.versionCounter;
+          }
+        }
+        ```
+    *   It will be instantiated once in the `Config` class (`packages/core/src/config/config.ts`) and passed to the tools that need it, ensuring a single counter per `gemini-cli` session.
+
+2.  **Upgrade `ReadFileTool`:**
+    *   **Where:** `packages/core/src/tools/read-file.ts`.
+    *   **How:**
+        *   The `ReadFileTool` constructor will accept an instance of `SessionStateService`.
+        *   The `execute` method will be modified to:
+            *   Call `sessionStateService.getNextVersion()` to get the new version number.
+            *   Use the Node.js `crypto` module to calculate the SHA-256 hash of the file content.
+            *   Change its `llmContent` return value from a plain string to the structured JSON object defined in section 4.1.
+
+3.  **Implement `SafePatchTool`:**
+    *   **Where:** Create a new file `packages/core/src/tools/safe-patch.ts`.
+    *   **How:**
+        *   Create a new `SafePatchTool` class extending `BaseTool`.
+        *   The constructor will accept `Config` and `SessionStateService` instances.
+        *   **Detailed Execution Flow & Error Handling:** The `execute` method will be structured with multiple, distinct exit points to provide clear feedback to the LLM.
+            1.  **State Verification (Hash Check):**
+                *   Read the live file content and calculate its SHA-256 hash.
+                *   **If hashes mismatch:** Immediately fail. Return `success: false` with `message: "State Mismatch: File has changed on disk since it was last read."` and include the `latest_file_state` of the live file for immediate recovery.
+            2.  **"Fix the Diff" Stage:**
+                *   Take the LLM's `unified_diff` and the known-good original content (from the hash match).
+                *   Programmatically find the true line numbers for each hunk by matching the context and removal lines (` ` and `-`).
+                *   **If a hunk's context/removal lines cannot be found in the original content:** The diff is fundamentally flawed. Fail with `success: false` and `message: "Invalid Diff: The provided diff content does not match the file's content. The context or lines to be removed may be incorrect."`. The `latest_file_state` will be the *unchanged* original file state.
+                *   If successful, generate a new, corrected `unified_diff` in memory.
+            3.  **"Apply Strict Patch" Stage:**
+                *   Use the `diff` library's strict `applyPatch` function on the *corrected* diff.
+                *   The `applyPatch` function itself can return `false` if it fails for an unexpected reason (e.g., a bug in the library or a subtle diff format error).
+                *   **If `applyPatch` fails:** This is an unexpected internal error. Fail with `success: false` and `message: "Internal Error: The corrected patch failed to apply. Please review the diff for subtle errors."`. The `latest_file_state` will be the *unchanged* original file state.
+            4.  **Success:**
+                *   If the patch applies successfully, write the new content to disk.
+                *   Return `success: true` with `message: "Patch applied successfully."` and the `latest_file_state` containing the newly written content, hash, and version.
+        *   **Dependency:** The `diff` library's `applyPatch` function **MUST** be used for the final, strict application step. The "Fix the Diff" logic will need to be implemented as a new utility function.
+
+4.  **Integrate with Gemini-CLI Console UI:**
+    *   **Where:** Within the new `packages/core/src/tools/safe-patch.ts` file.
+    *   **How:** The existing UI confirmation flow for `replace` and `write_file` can be reused seamlessly. This is handled by the `shouldConfirmExecute` method.
+        *   The `SafePatchTool` will implement a `shouldConfirmExecute` method.
+        *   Inside this method, it will first perform the SHA-256 hash check. If the check fails, it will return `false` to prevent the confirmation from appearing.
+        *   If the hash check passes, it will read the original file content and use the `unified_diff` provided by the LLM.
+        *   It will then construct and return a `ToolEditConfirmationDetails` object, just as the current tools do. The `fileDiff` property of this object will be the `unified_diff` from the LLM's parameters.
+        *   The existing `gemini-cli` console logic will automatically render this object as an interactive diff for the user to approve or deny, requiring no changes to the core UI code.
+
+5.  **Register New/Modified Tools:**
+    *   **Where:** `packages/core/src/config/config.ts`, within the `createToolRegistry` method.
+    *   **How:**
+        *   The `ReadFileTool` registration will be updated to pass the `SessionStateService` instance.
+        *   A new line will be added: `registerCoreTool(SafePatchTool, this, this.sessionStateService)`.
+        *   The line for `registerCoreTool(EditTool, this)` will be removed to deprecate the old tool.
+
 ### 6. LLM Guidance and Tool Discovery
 
-The `gemini-cli` model does not use a single, global "system prompt." Instead, each tool's `description` field serves as the just-in-time prompt for the LLM. This is the correct and established mechanism for providing LLM guidance. The agent's workflow is therefore defined by the instructions embedded in the tools it uses.
+The user correctly pointed out that `gemini-cli` does not have a single, global "system prompt." Instead, each tool's `description` field serves as the just-in-time prompt for the LLM. This is the correct and established mechanism for providing LLM guidance.
 
-*   **Action:** The `description` fields for `read_file` and `safe_patch` will be meticulously crafted to include the new workflow instructions.
-*   **`read_file` description update:**
-    > "Reads the content of a file and returns it along with a version number and a SHA-256 hash. This versioned data is required for safely modifying files with the `safe_patch` tool."
-*   **`safe_patch` description:**
+*   **Action:** The `description` field in the `SafePatchTool`'s constructor will be meticulously crafted to include the new workflow instructions.
+*   **Example `description` for `safe_patch`:**
     > "Applies a set of changes to a file using a unified diff patch. This is the preferred tool for all file modifications.
     >
     > **Usage Protocol:**
@@ -112,7 +190,7 @@ The `gemini-cli` model does not use a single, global "system prompt." Instead, e
     > 3.  When generating the `unified_diff`, you **MUST** include at least 10 lines of unchanged context around each change hunk (equivalent to `diff -U 10`) to ensure the patch can be applied reliably.
     > 4.  You **MUST** provide the `sha256` hash that was returned with that version as the `base_content_sha256` parameter. This hash acts as a lock; the operation will fail if the file has been modified since you read it."
 
-This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`. The LLM will always receive the latest instructions and state from the tool's output, enabling it to self-correct and follow the protocol.
+This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`.
 
 ### 7. Test Plan
 
