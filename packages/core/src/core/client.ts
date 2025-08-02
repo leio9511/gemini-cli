@@ -5,14 +5,15 @@
  */
 
 import {
-  EmbedContentParameters,
+  Content,
+  FinishReason,
+  GenerateContentResponse,
   GenerateContentConfig,
+  Tool,
   Part,
   SchemaUnion,
   PartListUnion,
-  Content,
-  Tool,
-  GenerateContentResponse,
+  EmbedContentParameters,
 } from '@google/genai';
 import { getFolderStructure } from '../utils/getFolderStructure.js';
 import {
@@ -373,11 +374,15 @@ export class GeminiClient {
       return turn;
     }
 
+    let finishReason: FinishReason | undefined;
     const resultStream = turn.run(request, signal);
     for await (const event of resultStream) {
       if (this.loopDetector.addAndCheck(event)) {
         yield { type: GeminiEventType.LoopDetected };
         return turn;
+      }
+      if (event.type === GeminiEventType.Finished) {
+        finishReason = event.value;
       }
       yield event;
     }
@@ -390,16 +395,27 @@ export class GeminiClient {
         return turn;
       }
 
-      const nextSpeakerCheck = await checkNextSpeaker(
-        this.getChat(),
-        this,
-        signal,
-      );
-      if (nextSpeakerCheck?.next_speaker === 'model') {
-        logFlashDecidedToContinue(
-          this.config,
-          new FlashDecidedToContinueEvent(prompt_id),
+      let shouldContinue = false;
+      if (this.config.getEnableNextSpeakerCheck()) {
+        // Legacy behavior behind the feature flag
+        const nextSpeakerCheck = await checkNextSpeaker(
+          this.getChat(),
+          this,
+          signal,
         );
+        if (nextSpeakerCheck?.next_speaker === 'model') {
+          logFlashDecidedToContinue(
+            this.config,
+            new FlashDecidedToContinueEvent(prompt_id),
+          );
+          shouldContinue = true;
+        }
+      } else if (finishReason === 'MAX_TOKENS') {
+        // Default behavior: only continue if the response was truncated.
+        shouldContinue = true;
+      }
+
+      if (shouldContinue) {
         const nextRequest = [{ text: 'Please continue.' }];
         // This recursive call's events will be yielded out, but the final
         // turn object will be from the top-level call.

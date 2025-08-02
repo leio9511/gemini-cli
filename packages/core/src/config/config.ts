@@ -187,6 +187,7 @@ export interface ConfigParameters {
   summarizeToolOutput?: Record<string, SummarizeToolOutputSettings>;
   ideMode?: boolean;
   ideClient?: IdeClient;
+  enableNextSpeakerCheck?: boolean;
 }
 
 export class Config {
@@ -245,6 +246,7 @@ export class Config {
     | Record<string, SummarizeToolOutputSettings>
     | undefined;
   private readonly experimentalAcp: boolean = false;
+  private readonly enableNextSpeakerCheck: boolean;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -298,6 +300,7 @@ export class Config {
     this.summarizeToolOutput = params.summarizeToolOutput;
     this.ideMode = params.ideMode ?? false;
     this.ideClient = params.ideClient;
+    this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -592,6 +595,10 @@ export class Config {
 
   getIdeClient(): IdeClient | undefined {
     return this.ideClient;
+  }
+
+  getEnableNextSpeakerCheck(): boolean {
+    return this.enableNextSpeakerCheck;
   }
 
   async getGitService(): Promise<GitService> {

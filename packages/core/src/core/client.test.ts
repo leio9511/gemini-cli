@@ -200,6 +200,7 @@ describe('Gemini Client (client.ts)', () => {
       getNoBrowser: vi.fn().mockReturnValue(false),
       getUsageStatisticsEnabled: vi.fn().mockReturnValue(true),
       getIdeMode: vi.fn().mockReturnValue(false),
+      getEnableNextSpeakerCheck: vi.fn().mockReturnValue(false),
       getGeminiClient: vi.fn(),
       setFallbackMode: vi.fn(),
     };
@@ -944,6 +945,9 @@ Here are some files the user has open, with the most recent at the top:
         next_speaker: 'model',
         reasoning: 'Test case - always continue',
       });
+      vi.spyOn(client['config'], 'getEnableNextSpeakerCheck').mockReturnValue(
+        true,
+      );
 
       // Mock Turn to have no pending tool calls (which would allow nextSpeaker check)
       const mockStream = (async function* () {
@@ -1099,6 +1103,9 @@ Here are some files the user has open, with the most recent at the top:
         next_speaker: 'model',
         reasoning: 'Test case - always continue',
       });
+      vi.spyOn(client['config'], 'getEnableNextSpeakerCheck').mockReturnValue(
+        true,
+      );
 
       // Mock Turn to have no pending tool calls (which would allow nextSpeaker check)
       const mockStream = (async function* () {

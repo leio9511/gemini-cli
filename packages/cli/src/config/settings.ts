@@ -106,6 +106,8 @@ export interface Settings {
   disableAutoUpdate?: boolean;
 
   memoryDiscoveryMaxDirs?: number;
+
+  enableNextSpeakerCheck?: boolean;
 }
 
 export interface SettingsError {
