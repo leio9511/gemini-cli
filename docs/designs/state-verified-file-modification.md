@@ -96,16 +96,16 @@ This new tool will replace the existing `replace` tool. It uses a hash for pre-c
     }
     ```
 
-#### 4.3. The LLM Agent's Workflow
+#### 4.3. The LLM Agent's Expected Workflow
 
-The LLM's instructions will be updated to use this new, more intelligent workflow.
+This section describes the intelligent, emergent workflow we expect the LLM to adopt by following the detailed, just-in-time instructions provided in the tools' `description` fields. This is not a separate system prompt, but rather a clarification of the intended behavior for human readers of this document.
 
 1.  **Goal:** Modify a file.
 2.  **Scan Context:** The LLM first scans its chat history for the target file, looking for the entry with the **highest `version` number**.
 3.  **Decide:**
     *   **If a versioned entry is found:** The LLM uses the `content` and `sha256` from that entry to generate a `unified_diff` and call `safe_patch`. It does **not** call `read_file`.
     *   **If no versioned entry is found:** The LLM knows it lacks safe context and its first action must be to call `read_file` to get it.
-4.  **Process Result:** The LLM always receives a `latest_file_state` object.
+4.  **Process Result:** The LLM always receives a `latest_file_state` object from `safe_patch`.
     *   On success, it uses this new state for subsequent operations and can self-verify the change.
     *   On a state mismatch failure, it uses the provided `latest_file_state` to immediately retry the patch, enabling rapid, single-turn recovery.
 
@@ -178,10 +178,12 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
 
 ### 6. LLM Guidance and Tool Discovery
 
-The user correctly pointed out that `gemini-cli` does not have a single, global "system prompt." Instead, each tool's `description` field serves as the just-in-time prompt for the LLM. This is the correct and established mechanism for providing LLM guidance.
+The `gemini-cli` model does not use a single, global "system prompt." Instead, each tool's `description` field serves as the just-in-time prompt for the LLM, defining the agent's workflow. This is the correct and established mechanism for providing LLM guidance.
 
-*   **Action:** The `description` field in the `SafePatchTool`'s constructor will be meticulously crafted to include the new workflow instructions.
-*   **Example `description` for `safe_patch`:**
+*   **Action:** The `description` fields for `read_file` and `safe_patch` will be meticulously crafted to include the new workflow instructions.
+*   **`read_file` description update:**
+    > "Reads the content of a file and returns it along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files with the `safe_patch` tool."
+*   **`safe_patch` description:**
     > "Applies a set of changes to a file using a unified diff patch. This is the preferred tool for all file modifications.
     >
     > **Usage Protocol:**
@@ -190,7 +192,7 @@ The user correctly pointed out that `gemini-cli` does not have a single, global 
     > 3.  When generating the `unified_diff`, you **MUST** include at least 10 lines of unchanged context around each change hunk (equivalent to `diff -U 10`) to ensure the patch can be applied reliably.
     > 4.  You **MUST** provide the `sha256` hash that was returned with that version as the `base_content_sha256` parameter. This hash acts as a lock; the operation will fail if the file has been modified since you read it."
 
-This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`.
+This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`. The LLM will always receive the latest instructions and state from the tool's output, enabling it to self-correct and follow the protocol.
 
 ### 7. Test Plan
 
@@ -217,10 +219,3 @@ Testing will follow the existing project convention of co-locating `*.test.ts` f
     *   **Failure Case (Internal Patch Error):** Use `vi.spyOn` to mock the `applyPatch` function from the `diff` library and force it to return `false`. Test that the tool correctly catches this and returns the "Internal Error" message.
     *   **File Creation Case:** Test that the tool can create a new file when the original file does not exist (the hash of an empty string can be used as the base).
 
-### 8. Open Questions
-
-*   **Error Handling for Patches:** How should the tool handle a syntactically incorrect diff from the LLM? The initial implementation should fail with a clear error message in the `message` field of the response. Future iterations could provide more specific feedback on the nature of the malformed patch.
-
-### 8. Open Questions
-
-*   **Error Handling for Patches:** How should the tool handle a syntactically incorrect diff from the LLM? The initial implementation should fail with a clear error message in the `message` field of the response. Future iterations could provide more specific feedback on the nature of the malformed patch.
