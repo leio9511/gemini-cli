@@ -44,8 +44,12 @@ import { ProxyAgent, setGlobalDispatcher } from 'undici';
 import { DEFAULT_GEMINI_FLASH_MODEL } from '../config/models.js';
 import { LoopDetectionService } from '../services/loopDetectionService.js';
 import { ideContext } from '../ide/ideContext.js';
-import { logFlashDecidedToContinue } from '../telemetry/loggers.js';
-import { FlashDecidedToContinueEvent } from '../telemetry/types.js';
+import { logNextSpeakerCheck } from '../telemetry/loggers.js';
+import {
+  MalformedJsonResponseEvent,
+  NextSpeakerCheckEvent,
+} from '../telemetry/types.js';
+import { ClearcutLogger } from '../telemetry/clearcut-logger/clearcut-logger.js';
 
 function isThinkingSupported(model: string) {
   if (model.startsWith('gemini-2.5')) return true;
@@ -107,7 +111,7 @@ export class GeminiClient {
   private readonly COMPRESSION_PRESERVE_THRESHOLD = 0.3;
 
   private readonly loopDetector: LoopDetectionService;
-  private lastPromptId?: string;
+  private lastPromptId: string;
 
   constructor(private config: Config) {
     if (config.getProxy()) {
@@ -116,6 +120,7 @@ export class GeminiClient {
 
     this.embeddingModel = config.getEmbeddingModel();
     this.loopDetector = new LoopDetectionService(config);
+    this.lastPromptId = this.config.getSessionId();
   }
 
   async initialize(contentGeneratorConfig: ContentGeneratorConfig) {
@@ -172,8 +177,36 @@ export class GeminiClient {
     this.chat = await this.startChat();
   }
 
+  async addDirectoryContext(): Promise<void> {
+    if (!this.chat) {
+      return;
+    }
+
+    this.getChat().addHistory({
+      role: 'user',
+      parts: [{ text: await this.getDirectoryContext() }],
+    });
+  }
+
+  private async getDirectoryContext(): Promise<string> {
+    const workspaceContext = this.config.getWorkspaceContext();
+    const workspaceDirectories = workspaceContext.getDirectories();
+
+    const folderStructures = await Promise.all(
+      workspaceDirectories.map((dir) =>
+        getFolderStructure(dir, {
+          fileService: this.config.getFileService(),
+        }),
+      ),
+    );
+
+    const folderStructure = folderStructures.join('\n');
+    const dirList = workspaceDirectories.map((dir) => `  - ${dir}`).join('\n');
+    const workingDirPreamble = `I'm currently working in the following directories:\n${dirList}\n Folder structures are as follows:\n${folderStructure}`;
+    return workingDirPreamble;
+  }
+
   private async getEnvironment(): Promise<Part[]> {
-    const cwd = this.config.getWorkingDir();
     const today = new Date().toLocaleDateString(undefined, {
       weekday: 'long',
       year: 'numeric',
@@ -181,14 +214,36 @@ export class GeminiClient {
       day: 'numeric',
     });
     const platform = process.platform;
-    const folderStructure = await getFolderStructure(cwd, {
-      fileService: this.config.getFileService(),
-    });
+
+    const workspaceContext = this.config.getWorkspaceContext();
+    const workspaceDirectories = workspaceContext.getDirectories();
+
+    const folderStructures = await Promise.all(
+      workspaceDirectories.map((dir) =>
+        getFolderStructure(dir, {
+          fileService: this.config.getFileService(),
+        }),
+      ),
+    );
+
+    const folderStructure = folderStructures.join('\n');
+
+    let workingDirPreamble: string;
+    if (workspaceDirectories.length === 1) {
+      workingDirPreamble = `I'm currently working in the directory: ${workspaceDirectories[0]}`;
+    } else {
+      const dirList = workspaceDirectories
+        .map((dir) => `  - ${dir}`)
+        .join('\n');
+      workingDirPreamble = `I'm currently working in the following directories:\n${dirList}`;
+    }
+
     const context = `
   This is the Gemini CLI. We are setting up the context for our chat.
   Today's date is ${today}.
   My operating system is: ${platform}
-  I'm currently working in the directory: ${cwd}
+  ${workingDirPreamble}
+  Here is the folder structure of the current working directories:\n
   ${folderStructure}
           `.trim();
 
@@ -320,7 +375,7 @@ export class GeminiClient {
       yield { type: GeminiEventType.ChatCompressed, value: compressed };
     }
 
-    if (this.config.getIdeMode()) {
+    if (this.config.getIdeModeFeature() && this.config.getIdeMode()) {
       const ideContextState = ideContext.getIdeContext();
       const openFiles = ideContextState?.workspaceState?.openFiles;
 
@@ -403,11 +458,15 @@ export class GeminiClient {
           this,
           signal,
         );
+        logNextSpeakerCheck(
+          this.config,
+          new NextSpeakerCheckEvent(
+            prompt_id,
+            turn.finishReason?.toString() || '',
+            nextSpeakerCheck?.next_speaker || '',
+          ),
+        );
         if (nextSpeakerCheck?.next_speaker === 'model') {
-          logFlashDecidedToContinue(
-            this.config,
-            new FlashDecidedToContinueEvent(prompt_id),
-          );
           shouldContinue = true;
         }
       } else if (finishReason === 'MAX_TOKENS') {
@@ -451,16 +510,19 @@ export class GeminiClient {
       };
 
       const apiCall = () =>
-        this.getContentGenerator().generateContent({
-          model: modelToUse,
-          config: {
-            ...requestConfig,
-            systemInstruction,
-            responseSchema: schema,
-            responseMimeType: 'application/json',
+        this.getContentGenerator().generateContent(
+          {
+            model: modelToUse,
+            config: {
+              ...requestConfig,
+              systemInstruction,
+              responseSchema: schema,
+              responseMimeType: 'application/json',
+            },
+            contents,
           },
-          contents,
-        });
+          this.lastPromptId,
+        );
 
       const result = await retryWithBackoff(apiCall, {
         onPersistent429: async (authType?: string, error?: unknown) =>
@@ -468,7 +530,7 @@ export class GeminiClient {
         authType: this.config.getContentGeneratorConfig()?.authType,
       });
 
-      const text = getResponseText(result);
+      let text = getResponseText(result);
       if (!text) {
         const error = new Error(
           'API returned an empty response for generateJson.',
@@ -481,6 +543,18 @@ export class GeminiClient {
         );
         throw error;
       }
+
+      const prefix = '```json';
+      const suffix = '```';
+      if (text.startsWith(prefix) && text.endsWith(suffix)) {
+        ClearcutLogger.getInstance(this.config)?.logMalformedJsonResponseEvent(
+          new MalformedJsonResponseEvent(modelToUse),
+        );
+        text = text
+          .substring(prefix.length, text.length - suffix.length)
+          .trim();
+      }
+
       try {
         return JSON.parse(text);
       } catch (parseError) {
@@ -494,7 +568,9 @@ export class GeminiClient {
           'generateJson-parse',
         );
         throw new Error(
-          `Failed to parse API response as JSON: ${getErrorMessage(parseError)}`,
+          `Failed to parse API response as JSON: ${getErrorMessage(
+            parseError,
+          )}`,
         );
       }
     } catch (error) {
@@ -545,11 +621,14 @@ export class GeminiClient {
       };
 
       const apiCall = () =>
-        this.getContentGenerator().generateContent({
-          model: modelToUse,
-          config: requestConfig,
-          contents,
-        });
+        this.getContentGenerator().generateContent(
+          {
+            model: modelToUse,
+            config: requestConfig,
+            contents,
+          },
+          this.lastPromptId,
+        );
 
       const result = await retryWithBackoff(apiCall, {
         onPersistent429: async (authType?: string, error?: unknown) =>

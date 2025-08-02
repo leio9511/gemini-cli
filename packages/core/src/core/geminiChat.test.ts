@@ -92,11 +92,14 @@ describe('GeminiChat', () => {
 
       await chat.sendMessage({ message: 'hello' }, 'prompt-id-1');
 
-      expect(mockModelsModule.generateContent).toHaveBeenCalledWith({
-        model: 'gemini-pro',
-        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
-        config: {},
-      });
+      expect(mockModelsModule.generateContent).toHaveBeenCalledWith(
+        {
+          model: 'gemini-pro',
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+          config: {},
+        },
+        'prompt-id-1',
+      );
     });
   });
 
@@ -124,11 +127,14 @@ describe('GeminiChat', () => {
 
       await chat.sendMessageStream({ message: 'hello' }, 'prompt-id-1');
 
-      expect(mockModelsModule.generateContentStream).toHaveBeenCalledWith({
-        model: 'gemini-pro',
-        contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
-        config: {},
-      });
+      expect(mockModelsModule.generateContentStream).toHaveBeenCalledWith(
+        {
+          model: 'gemini-pro',
+          contents: [{ role: 'user', parts: [{ text: 'hello' }] }],
+          config: {},
+        },
+        'prompt-id-1',
+      );
     });
   });
 
@@ -166,6 +172,7 @@ describe('GeminiChat', () => {
         expect.objectContaining({
           contents: expectedContents,
         }),
+        'prompt-id-1',
       );
     });
 
@@ -196,6 +203,7 @@ describe('GeminiChat', () => {
         expect.objectContaining({
           contents: expectedContents,
         }),
+        'prompt-id-1',
       );
     });
 
@@ -228,6 +236,7 @@ describe('GeminiChat', () => {
         expect.objectContaining({
           contents: expectedContents,
         }),
+        'prompt-id-1',
       );
     });
 
