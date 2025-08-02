@@ -17,6 +17,7 @@ import {
   GenerateContentResponseUsageMetadata,
   Tool,
 } from '@google/genai';
+import fs from 'fs';
 import { retryWithBackoff } from '../utils/retry.js';
 import { isFunctionResponse } from '../utils/messageInspectors.js';
 import { ContentGenerator, AuthType } from './contentGenerator.js';
@@ -291,10 +292,22 @@ export class GeminiChat {
     );
 
     if (this.config.getDumpChat()) {
-      console.log(
-        '[DUMP CHAT] Sending to LLM:',
-        JSON.stringify(finalRequestContents, null, 2),
-      );
+      const dumpChatPath = this.config.getDumpChatPath();
+      if (dumpChatPath) {
+        fs.appendFileSync(
+          dumpChatPath,
+          `[DUMP CHAT] Sending to LLM: ${JSON.stringify(
+            finalRequestContents,
+            null,
+            2,
+          )}\n`,
+        );
+      } else {
+        console.log(
+          '[DUMP CHAT] Sending to LLM:',
+          JSON.stringify(finalRequestContents, null, 2),
+        );
+      }
     }
 
     const startTime = Date.now();
@@ -429,10 +442,22 @@ export class GeminiChat {
     );
 
     if (this.config.getDumpChat()) {
-      console.log(
-        '[DUMP CHAT] Sending to LLM:',
-        JSON.stringify(finalRequestContents, null, 2),
-      );
+      const dumpChatPath = this.config.getDumpChatPath();
+      if (dumpChatPath) {
+        fs.appendFileSync(
+          dumpChatPath,
+          `[DUMP CHAT] Sending to LLM: ${JSON.stringify(
+            finalRequestContents,
+            null,
+            2,
+          )}\n`,
+        );
+      } else {
+        console.log(
+          '[DUMP CHAT] Sending to LLM:',
+          JSON.stringify(finalRequestContents, null, 2),
+        );
+      }
     }
 
     const startTime = Date.now();

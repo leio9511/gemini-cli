@@ -151,6 +151,7 @@ export interface ConfigParameters {
   targetDir: string;
   debugMode: boolean;
   dumpChat?: boolean;
+  dumpChatPath?: string;
   question?: string;
   fullContext?: boolean;
   coreTools?: string[];
@@ -204,6 +205,7 @@ export class Config {
   private workspaceContext: WorkspaceContext;
   private readonly debugMode: boolean;
   private readonly dumpChat: boolean;
+  private readonly dumpChatPath: string | undefined;
   private readonly question: string | undefined;
   private readonly fullContext: boolean;
   private readonly coreTools: string[] | undefined;
@@ -265,6 +267,7 @@ export class Config {
     );
     this.debugMode = params.debugMode;
     this.dumpChat = params.dumpChat ?? false;
+    this.dumpChatPath = params.dumpChatPath;
     this.question = params.question;
     this.fullContext = params.fullContext ?? false;
     this.coreTools = params.coreTools;
@@ -438,6 +441,9 @@ export class Config {
   }
   getDumpChat(): boolean {
     return this.dumpChat;
+  }
+  getDumpChatPath(): string | undefined {
+    return this.dumpChatPath;
   }
   getQuestion(): string | undefined {
     return this.question;

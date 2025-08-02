@@ -10,6 +10,7 @@ import { homedir } from 'node:os';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import process from 'node:process';
+import tmp from 'tmp';
 import {
   Config,
   loadServerHierarchicalMemory,
@@ -46,6 +47,7 @@ export interface CliArgs {
   sandboxImage: string | undefined;
   debug: boolean | undefined;
   dumpChat: boolean | undefined;
+  dumpChatPath: string | undefined;
   prompt: string | undefined;
   promptInteractive: string | undefined;
   allFiles: boolean | undefined;
@@ -112,6 +114,10 @@ export async function parseArguments(): Promise<CliArgs> {
       type: 'boolean',
       description: 'Dump chat contents to the console.',
       default: false,
+    })
+    .option('dump-chat-path', {
+      type: 'string',
+      description: 'Path to dump chat contents to.',
     })
     .option('all-files', {
       alias: ['a'],
@@ -397,6 +403,14 @@ export async function loadCliConfig(
 
   const sandboxConfig = await loadSandboxConfig(settings, argv);
 
+  const dumpChat = argv.dumpChat;
+  let dumpChatPath = argv.dumpChatPath;
+  if (dumpChat && !dumpChatPath) {
+    const tmpFile = tmp.fileSync({ postfix: '.log' });
+    dumpChatPath = tmpFile.name;
+    console.log(`Dumping chat to ${dumpChatPath}`);
+  }
+
   return new Config({
     sessionId,
     embeddingModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
@@ -405,6 +419,7 @@ export async function loadCliConfig(
     includeDirectories: argv.includeDirectories,
     debugMode,
     dumpChat: argv.dumpChat,
+    dumpChatPath,
     question: argv.promptInteractive || argv.prompt || '',
     fullContext: argv.allFiles || argv.all_files || false,
     coreTools: settings.coreTools || undefined,
