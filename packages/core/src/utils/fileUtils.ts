@@ -5,9 +5,12 @@
  */
 
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { PartUnion } from '@google/genai';
 import mime from 'mime-types';
+import * as crypto from 'node:crypto';
+import type { SessionStateService } from '../services/session-state-service.js';
 
 // Constants for text file processing
 const DEFAULT_MAX_LINES_TEXT_FILE = 2000;
@@ -59,9 +62,9 @@ export function isWithinRoot(
  * @returns Promise that resolves to true if the file appears to be binary.
  */
 export async function isBinaryFile(filePath: string): Promise<boolean> {
-  let fileHandle: fs.promises.FileHandle | undefined;
+  let fileHandle: fsPromises.FileHandle | undefined;
   try {
-    fileHandle = await fs.promises.open(filePath, 'r');
+    fileHandle = await fsPromises.open(filePath, 'r');
 
     // Read up to 4KB or file size, whichever is smaller
     const stats = await fileHandle.stat();
@@ -226,7 +229,7 @@ export async function processSingleFileContent(
         error: `File not found: ${filePath}`,
       };
     }
-    const stats = await fs.promises.stat(filePath);
+    const stats = await fsPromises.stat(filePath);
     if (stats.isDirectory()) {
       return {
         llmContent: '',
@@ -268,14 +271,14 @@ export async function processSingleFileContent(
             returnDisplay: `Skipped large SVG file (>1MB): ${relativePathForDisplay}`,
           };
         }
-        const content = await fs.promises.readFile(filePath, 'utf8');
+        const content = await fsPromises.readFile(filePath, 'utf8');
         return {
           llmContent: content,
           returnDisplay: `Read SVG as text: ${relativePathForDisplay}`,
         };
       }
       case 'text': {
-        const content = await fs.promises.readFile(filePath, 'utf8');
+        const content = await fsPromises.readFile(filePath, 'utf8');
         const lines = content.split('\n');
         const originalLineCount = lines.length;
 
@@ -335,7 +338,7 @@ export async function processSingleFileContent(
       case 'pdf':
       case 'audio':
       case 'video': {
-        const contentBuffer = await fs.promises.readFile(filePath);
+        const contentBuffer = await fsPromises.readFile(filePath);
         const base64Data = contentBuffer.toString('base64');
         return {
           llmContent: {
@@ -368,4 +371,25 @@ export async function processSingleFileContent(
       error: `Error reading file ${filePath}: ${errorMessage}`,
     };
   }
+}
+
+export async function createVersionedFileObject(
+  filePath: string,
+  sessionStateService: SessionStateService,
+): Promise<{
+  file_path: string;
+  version: number;
+  sha256: string;
+  content: string;
+}> {
+  const content = await fsPromises.readFile(filePath, 'utf-8');
+  const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+  const version = sessionStateService.getNextVersion();
+
+  return {
+    file_path: filePath,
+    version,
+    sha256,
+    content,
+  };
 }

@@ -25,7 +25,9 @@ import {
   isBinaryFile,
   detectFileType,
   processSingleFileContent,
+  createVersionedFileObject,
 } from './fileUtils.js';
+import { SessionStateService } from '../services/session-state-service.js';
 
 vi.mock('mime-types', () => ({
   default: { lookup: vi.fn() },
@@ -271,7 +273,7 @@ describe('fileUtils', () => {
     });
 
     it('should read a text file successfully', async () => {
-      const content = 'Line 1\\nLine 2\\nLine 3';
+      const content = 'Line 1\nLine 2\nLine 3';
       actualNodeFs.writeFileSync(testTextFilePath, content);
       const result = await processSingleFileContent(
         testTextFilePath,
@@ -548,5 +550,58 @@ describe('fileUtils', () => {
       );
       expect(result.llmContent).toContain('File size exceeds the 20MB limit');
     });
+  });
+});
+
+// This describe block is testing a function that does not exist yet.
+// We are following the TDD process.
+describe('createVersionedFileObject', () => {
+  let sessionStateService: SessionStateService;
+
+  beforeEach(() => {
+    // Create a real session state service and spy on its method
+    sessionStateService = new SessionStateService();
+  });
+
+  it('should return a versioned file object with correct content, hash, and version', async () => {
+    const filePath = '/test/file.txt';
+    const content = 'hello world';
+    const expectedHash =
+      'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9';
+    const expectedVersion = 1;
+
+    // Mock the dependencies
+    vi.spyOn(fsPromises, 'readFile').mockResolvedValue(content);
+    vi.spyOn(sessionStateService, 'getNextVersion');
+
+    const result = await createVersionedFileObject(
+      filePath,
+      sessionStateService,
+    );
+
+    expect(fsPromises.readFile).toHaveBeenCalledWith(filePath, 'utf-8');
+    expect(sessionStateService.getNextVersion).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      file_path: filePath,
+      version: expectedVersion,
+      sha256: expectedHash,
+      content,
+    });
+  });
+
+  it('should throw an error if fs.readFile fails', async () => {
+    const filePath = '/test/nonexistent.txt';
+    const readError = new Error('File not found');
+
+    // Mock the dependencies
+    vi.spyOn(fsPromises, 'readFile').mockRejectedValue(readError);
+    const getNextVersionSpy = vi.spyOn(sessionStateService, 'getNextVersion');
+
+    await expect(
+      createVersionedFileObject(filePath, sessionStateService),
+    ).rejects.toThrow(readError);
+
+    // Ensure getNextVersion is not called if reading fails
+    expect(getNextVersionSpy).not.toHaveBeenCalled();
   });
 });
