@@ -23,6 +23,9 @@ In practice, the `replace` tool is highly likely to fail during interactive sess
   - **Increased Token Cost & Latency:** The agent must process a much larger context window on every turn.
   - **Increased LLM Confusion:** The sheer volume of redundant text creates "noise." It becomes harder for the LLM to identify the truly latest version of the file, increasing the likelihood of it referencing stale data and triggering another state synchronization failure.
 
+- **Consequence 3: Unintended File Overwrites with `write_file`**
+  A separate but related issue exists with the `write_file` tool. The LLM may attempt to use it to create a new file without first checking if a file with that name already exists. This can lead to the unintentional and destructive overwriting of existing file content, as the tool currently has no mechanism to verify the LLM's intent against the state of the file system.
+
 The current system is caught in a cycle: its tool for modification (`replace`) is not powerful enough for complex edits, forcing a workflow that actively degrades the quality of the context the LLM relies on, which in turn causes the tool to fail more often.
 
 ### 3. Goals & Non-Goals
@@ -116,7 +119,32 @@ This new tool will replace the existing `replace` tool. It uses a hash for pre-c
   }
   ```
 
-#### 4.3. The LLM Agent's Expected Workflow
+#### 4.3. Component 3: Upgraded `write_file` Tool
+
+To prevent accidental file overwrites, the `write_file` tool will be upgraded to use the same state-verification mechanism as `safe_patch`.
+
+- **Tool Signature:**
+  ```typescript
+  write_file(
+    file_path: string,
+    content: string,
+    base_content_sha256?: string // Optional
+  )
+  ```
+- **Internal Logic:**
+  1.  Check if `file_path` exists on disk.
+  2.  **If file exists:**
+      - A `base_content_sha256` **must** be provided. If it is not, the operation fails with an error indicating that the LLM is attempting to overwrite an existing file without declaring its state.
+      - Read the current content of `file_path` and calculate its SHA-256 hash.
+      - Compare the calculated hash with the provided `base_content_sha256`.
+      - **On Mismatch:** Fail with a "State Mismatch" error, returning the `latest_file_state`.
+      - **On Match:** Write the new content to the file.
+  3.  **If file does not exist:**
+      - The `base_content_sha256` parameter is ignored (or can be validated against the hash of an empty string).
+      - Create and write the new file.
+- **Unified Return Signature:** The tool will return the same `latest_file_state` object as `safe_patch` on success or failure, ensuring the LLM always receives the ground truth.
+
+#### 4.4. The LLM Agent's Expected Workflow
 
 This section describes the intelligent, emergent workflow we expect the LLM to adopt by following the detailed, just-in-time instructions provided in the tools' `description` fields. This is not a separate system prompt, but rather a clarification of the intended behavior for human readers of this document.
 
@@ -223,11 +251,20 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
             - Return `success: true` with `message: "Patch applied successfully."` and the `latest_file_state` containing the newly written content, hash, and version.
       - **Dependency:** The `diff` library's `applyPatch` function **MUST** be used for the final, strict application step. The "Fix the Diff" logic will need to be implemented as a new utility function.
 
-6.  **Update CLI Frontend for `@` Operator:**
+6.  **Upgrade `WriteFileTool`:**
+    - **Where:** `packages/core/src/tools/write-file.ts`.
+    - **How:**
+      - The `WriteFileTool` constructor will accept an instance of `SessionStateService`.
+      - The `execute` method will be updated to implement the logic described in "Component 3: Upgraded `write_file` Tool".
+      - It will check for the file's existence and validate the `base_content_sha256` if the file exists.
+      - On success, it will write the file and then use a helper function (potentially a new `createVersionedFileObjectFromContent` to avoid re-reading from disk) to construct and return the `latest_file_state` object.
+      - On failure (hash mismatch or missing hash for existing file), it will return the appropriate error message along with the `latest_file_state`.
+
+7.  **Update CLI Frontend for `@` Operator:**
     - **Where:** `packages/cli/src/ui/hooks/atCommandProcessor.ts`.
     - **How:** The `handleAtCommand` function currently calls the `read_many_files` tool and processes its string output. This function must be modified to handle the new return type. It will now receive an array of versioned JSON objects. Its responsibility is to parse this array and format the structured data (including file path, version, hash, and content) into the prompt sent to the LLM, ensuring the LLM receives the full "versioned ground truth" without needing a follow-up tool call.
 
-7.  **Integrate with Gemini-CLI Console UI:**
+8.  **Integrate with Gemini-CLI Console UI:**
     - **Where:** Within the new `packages/core/src/tools/safe-patch.ts` file.
     - **How:** The existing UI confirmation flow for `replace` and `write_file` can be reused seamlessly. This is handled by the `shouldConfirmExecute` method.
       - The `SafePatchTool` will implement a `shouldConfirmExecute` method.
@@ -236,10 +273,10 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
       - It will then construct and return a `ToolEditConfirmationDetails` object, just as the current tools do. The `fileDiff` property of this object will be the `unified_diff` from the LLM's parameters.
       - The existing `gemini-cli` console logic will automatically render this object as an interactive diff for the user to approve or deny, requiring no changes to the core UI code.
 
-8.  **Register New/Modified Tools:**
+9.  **Register New/Modified Tools:**
     - **Where:** `packages/core/src/config/config.ts`, within the `createToolRegistry` method.
     - **How:**
-      - The `ReadFileTool` and `ReadManyFilesTool` registrations will be updated to pass the `SessionStateService` instance.
+      - The `ReadFileTool`, `ReadManyFilesTool`, and `WriteFileTool` registrations will be updated to pass the `SessionStateService` instance.
       - A new line will be added: `registerCoreTool(SafePatchTool, this, this.sessionStateService)`.
       - The line for `registerCoreTool(EditTool, this)` will be removed to deprecate the old tool.
 
@@ -261,6 +298,15 @@ The `gemini-cli` model does not use a single, global "system prompt." Instead, e
   > 2.  If no versioned content is available, you **MUST** call `read_file` or `read_many_files` first to get it.
   > 3.  When generating the `unified_diff`, you **MUST** include at least 10 lines of unchanged context around each change hunk (equivalent to `diff -U 10`) to ensure the patch can be applied reliably.
   > 4.  You **MUST** provide the `sha256` hash that was returned with that version as the `base_content_sha256` parameter. This hash acts as a lock; the operation will fail if the file has been modified since you read it."
+- **`write_file` description:**
+  > "Writes content to a file. This tool is for creating new files or completely overwriting existing ones.
+  >
+  > **Usage Protocol:**
+  >
+  > 1.  **To create a new file:** Call the tool with the desired `file_path` and `content`. Do not provide a `base_content_sha256`.
+  > 2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from `read_file` or a previous tool call). You **MUST** provide the `sha256` from that version as the `base_content_sha256`. This prevents accidental overwrites of files that have changed.
+  > 3.  If you attempt to write to an existing file path without providing a `base_content_sha256`, the operation will fail as a safety measure."
+
 
 This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`. The LLM will always receive the latest instructions and state from the tool's output, enabling it to self-correct and follow the protocol.
 
@@ -495,14 +541,26 @@ This plan breaks down the implementation into distinct phases, each ending with 
 **Tasks (in TDD order):**
 
 1.  **Task: Update `WriteFileTool` Tests**
-    - In `packages/core/src/tools/write-file.test.ts`, add tests for the new optional `base_content_sha256` parameter, covering both success (match) and failure (mismatch) cases.
+    - In `packages/core/src/tools/write-file.test.ts`, rewrite the tests to cover the new state-aware logic comprehensively.
+    - **Test Create:** Verify the tool correctly creates a new file when the path does not exist and no `base_content_sha256` is provided. Assert that the returned `latest_file_state` is correct.
+    - **Test Safe Overwrite:** Verify the tool correctly overwrites an existing file when the correct `base_content_sha256` is provided. Assert the file content is updated and the returned `latest_file_state` is correct.
+    - **Test Failure (Missing Hash):** Verify the tool fails with a specific error message if it's called on an existing file path *without* providing a `base_content_sha256`. Assert the file is unchanged and the returned `latest_file_state` reflects the unchanged file.
+    - **Test Failure (Hash Mismatch):** Verify the tool fails with a "State Mismatch" error if the provided `base_content_sha256` does not match the on-disk file's hash. Assert the file is unchanged and the returned `latest_file_state` contains the new, correct state information from the disk.
+    - **Test Return Value:** In all cases (success or failure), verify the tool returns a `success` boolean and the `latest_file_state` object with the correct, up-to-date `file_path`, `version`, `sha256`, and `content`.
     - **How to run tests:**
       ```bash
       npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts
       ```
 
 2.  **Task: Update `WriteFileTool` Implementation**
-    - Modify `packages/core/src/tools/write-file.ts` to perform the hash check if `base_content_sha256` is provided.
+    - Modify `packages/core/src/tools/write-file.ts`.
+    - Update the constructor to accept the `SessionStateService`.
+    - Implement the full state-aware logic in the `execute` method:
+      1. Check for file existence.
+      2. If it exists, check for `base_content_sha256`. Fail if absent.
+      3. If hash is present, read the file, calculate its hash, and compare. Fail on mismatch.
+      4. If checks pass (or if it's a new file), write the content to disk.
+      5. In every exit path (success or failure), construct and return the full, consistent return object, including `success`, `message`, and `latest_file_state`. Use a helper to create the `latest_file_state` to ensure consistency.
 
 **Check Point 4.1: `WriteFileTool` is State-Aware**
 
@@ -523,6 +581,6 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 - **Verification:** The entire feature set is now complete.
   1.  Perform full end-to-end manual testing of all read and write/patch flows.
-  2.  Test the `write_file` tool's new safety feature by attempting to overwrite a file with an incorrect hash.
+  2.  Test the `write_file` tool's new safety feature by attempting to overwrite a file with an incorrect hash, and also by attempting to overwrite an existing file without a hash.
   3.  Review the output of the `/tools` command in the CLI to ensure the new tool descriptions are clear and accurate.
   4.  The project is now considered feature-complete.
