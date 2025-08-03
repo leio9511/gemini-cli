@@ -335,10 +335,10 @@ This plan breaks down the implementation into distinct phases, each ending with 
 **Check Point 1.1: `SessionStateService` is Complete** [DONE]
 
 - **State:** Green.
-- **Verification:** All tests for `SessionStateService` are passing (`npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts`). The full preflight check (`npm run preflight`) passes, confirming no regressions. After preflight passes, run "git status" to review changes made so far.
+- **Verification:** All tests for `SessionStateService` are passing (`npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts`). The full preflight check (`npm run preflight`) passes, confirming no regressions. After preflight passes, run "git status" to review changes made so far. (Completed in commit cf236350)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-3.  **Task: Test the `createVersionedFileObject` Utility**
+3.  **Task: Test the `createVersionedFileObject` Utility** [DONE]
     - In a relevant existing test file like `packages/core/src/utils/fileUtils.test.ts` (or a new one), add a test suite for the new `createVersionedFileObject` utility.
     - Write tests that mock `fs` and `SessionStateService`. Verify that for a given file path, the utility correctly reads the file, calls for a version number, calculates the correct SHA-256 hash, and returns a perfectly structured JSON object.
     - **How to run tests:**
@@ -346,14 +346,14 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts
       ```
 
-4.  **Task: Implement the `createVersionedFileObject` Utility**
+4.  **Task: Implement the `createVersionedFileObject` Utility** [DONE]
     - In `packages/core/src/utils/fileUtils.ts` (or a similar new utility file), create the `async function createVersionedFileObject(...)`.
     - Implement the logic using `fs.readFile`, `crypto`, and the `SessionStateService` to make the tests pass.
 
-**Check Point 1.2: Versioning Utility is Complete**
+**Check Point 1.2: Versioning Utility is Complete** [DONE]
 
 - **State:** Green.
-- **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
+- **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit e68535d3)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 5.  **Task: Refactor `ReadFileTool` Tests**
