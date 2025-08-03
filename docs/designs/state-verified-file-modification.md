@@ -334,7 +334,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 1.1: `SessionStateService` is Complete**
 - **State:** Green.
-- **Verification:** All tests for `SessionStateService` are passing (`npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts`). The full preflight check (`npm run preflight`) passes, confirming no regressions.
+- **Verification:** All tests for `SessionStateService` are passing (`npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts`). The full preflight check (`npm run preflight`) passes, confirming no regressions. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 3.  **Task: Test the `createVersionedFileObject` Utility**
@@ -351,7 +351,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 1.2: Versioning Utility is Complete**
 - **State:** Green.
-- **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes.
+- **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 5.  **Task: Refactor `ReadFileTool` Tests**
@@ -370,7 +370,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 1.3: `ReadFileTool` is Version-Aware**
 - **State:** Green.
-- **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes.
+- **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation**
@@ -383,7 +383,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 **Milestone 1: Verifiable Versioned Reads**
 
 - **State:** Green.
-- **Verification:** At this stage, the core logic is complete. All unit tests are passing and the full preflight check (`npm run preflight`) is successful. Correctness can be verified by writing a small, temporary integration test script. This script should:
+- **Verification:** At this stage, the core logic is complete. All unit tests are passing and the full preflight check (`npm run preflight`) is successful. After preflight passes, run "git status" to review changes made so far. Correctness can be verified by writing a small, temporary integration test script. This script should:
   1.  Instantiate the `Config` and get the `ReadFileTool` and `ReadManyFilesTool`.
   2.  Call `execute` on both tools for known files.
   3.  Assert that the returned `llmContent` is the new structured JSON (or an array of them).
@@ -414,7 +414,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 2.1: `@` Processor is Version-Aware**
 - **State:** Green.
-- **Verification:** All tests for the `@` processor are passing (`npm test -w @google/gemini-cli -- src/ui/hooks/atCommandProcessor.test.ts`). The full preflight check (`npm run preflight`) passes.
+- **Verification:** All tests for the `@` processor are passing (`npm test -w @google/gemini-cli -- src/ui/hooks/atCommandProcessor.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 **Milestone 2: `@` Operator is State-Aware**
@@ -448,7 +448,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 3.1: `SafePatchTool` Logic is Complete**
 - **State:** Green.
-- **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes.
+- **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 3.  **Task: Implement UI Confirmation**
@@ -456,7 +456,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 3.2: UI Confirmation is Integrated**
 - **State:** Green.
-- **Verification:** The `shouldConfirmExecute` method is implemented and covered by tests. The full preflight check (`npm run preflight`) passes.
+- **Verification:** The `shouldConfirmExecute` method is implemented and covered by tests. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 4.  **Task: Register `SafePatchTool`**
@@ -465,7 +465,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 3.3: `SafePatchTool` is Registered**
 - **State:** Green.
-- **Verification:** The tool is correctly registered in the `Config` and the old tool is removed. This can be verified by running the CLI and checking the `/tools` command output. The full preflight check (`npm run preflight`) passes.
+- **Verification:** The tool is correctly registered in the `Config` and the old tool is removed. This can be verified by running the CLI and checking the `/tools` command output. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 **Milestone 3: Safe, Atomic Patching is Functional**
@@ -499,7 +499,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Check Point 4.1: `WriteFileTool` is State-Aware**
 - **State:** Green.
-- **Verification:** All tests for `WriteFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts`). The full preflight check (`npm run preflight`) passes.
+- **Verification:** All tests for `WriteFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review and commit. This task is now "Done".
 
 3.  **Task: Update LLM Guidance**
