@@ -319,7 +319,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Tasks (in TDD order):**
 
-1.  **Task: Test `SessionStateService`**
+1.  **Task: Test `SessionStateService`** [DONE]
     - Create `packages/core/src/services/session-state-service.test.ts`.
     - Write tests to verify that `getNextVersion()` starts at 1, increments correctly on subsequent calls, and that a new service instance resets the counter.
     - **How to run tests:**
@@ -327,15 +327,16 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts
       ```
 
-2.  **Task: Implement `SessionStateService`**
+2.  **Task: Implement `SessionStateService`** [DONE]
     - Create `packages/core/src/services/session-state-service.ts`.
     - Write the `SessionStateService` class with the `versionCounter` and `getNextVersion` method to make the tests pass.
     - Instantiate it within the `Config` class (`packages/core/src/config/config.ts`) so it can be passed to tools.
 
-**Check Point 1.1: `SessionStateService` is Complete**
+**Check Point 1.1: `SessionStateService` is Complete** [DONE]
+
 - **State:** Green.
 - **Verification:** All tests for `SessionStateService` are passing (`npm test -w @google/gemini-cli-core -- src/services/session-state-service.test.ts`). The full preflight check (`npm run preflight`) passes, confirming no regressions. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 3.  **Task: Test the `createVersionedFileObject` Utility**
     - In a relevant existing test file like `packages/core/src/utils/fileUtils.test.ts` (or a new one), add a test suite for the new `createVersionedFileObject` utility.
@@ -350,9 +351,10 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - Implement the logic using `fs.readFile`, `crypto`, and the `SessionStateService` to make the tests pass.
 
 **Check Point 1.2: Versioning Utility is Complete**
+
 - **State:** Green.
 - **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 5.  **Task: Refactor `ReadFileTool` Tests**
     - Modify `packages/core/src/tools/read-file.test.ts`.
@@ -369,9 +371,10 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - Simplify the `execute` method to a single call to the `createVersionedFileObject` utility.
 
 **Check Point 1.3: `ReadFileTool` is Version-Aware**
+
 - **State:** Green.
 - **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation**
     - Follow the same TDD pattern as for `ReadFileTool`: first update the tests in `packages/core/src/tools/read-many-files.test.ts` to mock the utility, then refactor the implementation in `packages/core/src/tools/read-many-files.ts` to use it in a loop.
@@ -388,7 +391,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
   2.  Call `execute` on both tools for known files.
   3.  Assert that the returned `llmContent` is the new structured JSON (or an array of them).
   4.  Assert that the `version` number increments sequentially across multiple tool calls.
-- **Action:** Phase 1 is ready for a final review and can be marked "Done".
+- **Action:** Phase 1 is ready for a final review. Must run `git commit` to commit change.
 
 ---
 
@@ -413,9 +416,10 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - Update the logic that processes the result from `read_many_files` to handle the array of JSON objects instead of an array of strings. Ensure it formats this structured data correctly into the final prompt.
 
 **Check Point 2.1: `@` Processor is Version-Aware**
+
 - **State:** Green.
 - **Verification:** All tests for the `@` processor are passing (`npm test -w @google/gemini-cli -- src/ui/hooks/atCommandProcessor.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 **Milestone 2: `@` Operator is State-Aware**
 
@@ -424,7 +428,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
   2.  Execute a prompt containing an `@` command (e.g., `gemini "Summarize this file: @/path/to/file.txt"`).
   3.  Using the debug logs (`--debug` flag), inspect the final prompt being sent to the model.
   4.  **Confirm** that the file content has been injected as a structured JSON block containing `file_path`, `version`, `sha256`, and `content`.
-- **Action:** Phase 2 is ready for a final review and can be marked "Done".
+- **Action:** Phase 2 is ready for a final review. Must run `git commit` to commit change.
 
 ---
 
@@ -447,26 +451,29 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - Implement the `SafePatchTool` class and its `execute` method, including the state verification, "Fix the Diff", and "Apply Strict Patch" stages, to make the tests pass.
 
 **Check Point 3.1: `SafePatchTool` Logic is Complete**
+
 - **State:** Green.
 - **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 3.  **Task: Implement UI Confirmation**
     - Implement the `shouldConfirmExecute` method within `SafePatchTool` to handle the interactive diff confirmation.
 
 **Check Point 3.2: UI Confirmation is Integrated**
+
 - **State:** Green.
 - **Verification:** The `shouldConfirmExecute` method is implemented and covered by tests. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 4.  **Task: Register `SafePatchTool`**
     - In `packages/core/src/config/config.ts`, register the new `SafePatchTool` and pass it the `SessionStateService`.
     - Remove the registration for the old `EditTool`.
 
 **Check Point 3.3: `SafePatchTool` is Registered**
+
 - **State:** Green.
 - **Verification:** The tool is correctly registered in the `Config` and the old tool is removed. This can be verified by running the CLI and checking the `/tools` command output. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 **Milestone 3: Safe, Atomic Patching is Functional**
 
@@ -477,7 +484,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
   4.  **Confirm** that the interactive diff confirmation for `safe_patch` appears.
   5.  Approve the change and verify the file is correctly modified on disk.
   6.  Test the state mismatch case: read a file with `@`, modify it manually in a separate editor, then ask the LLM to patch it. **Confirm** the tool call fails with the "State Mismatch" error in the CLI.
-- **Action:** Phase 3 is ready for a final review and can be marked "Done".
+- **Action:** Phase 3 is ready for a final review. Must run `git commit` to commit change.
 
 ---
 
@@ -498,17 +505,19 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - Modify `packages/core/src/tools/write-file.ts` to perform the hash check if `base_content_sha256` is provided.
 
 **Check Point 4.1: `WriteFileTool` is State-Aware**
+
 - **State:** Green.
 - **Verification:** All tests for `WriteFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review and commit. This task is now "Done".
+- **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 3.  **Task: Update LLM Guidance**
     - Update the `description` fields for `read_file`, `read_many_files`, `safe_patch`, and `write_file` as detailed in the "LLM Guidance and Tool Discovery" section.
 
 **Check Point 4.2: LLM Guidance is Updated**
+
 - **State:** Green.
 - **Verification:** The `description` fields in the tool definitions have been updated. This can be verified by running the CLI and inspecting the output of the `/tools` command.
-- **Action:** Documentation change is ready for review and commit. This task is now "Done".
+- **Action:** Documentation change is ready for review. Must run `git commit` to commit change.
 
 **Milestone 4: Fully State-Aware I/O Toolchain**
 

@@ -47,6 +47,7 @@ import { ClearcutLogger } from '../telemetry/clearcut-logger/clearcut-logger.js'
 import { shouldAttemptBrowserLaunch } from '../utils/browser.js';
 import { MCPOAuthConfig } from '../mcp/oauth-provider.js';
 import { IdeClient } from '../ide/ide-client.js';
+import { SessionStateService } from '../services/session-state-service.js';
 
 // Re-export OAuth config type
 export type { MCPOAuthConfig };
@@ -254,6 +255,7 @@ export class Config {
     | undefined;
   private readonly experimentalAcp: boolean = false;
   private readonly enableNextSpeakerCheck: boolean;
+  private readonly sessionStateService: SessionStateService;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -314,6 +316,7 @@ export class Config {
     this.ideMode = params.ideMode ?? true;
     this.ideClient = params.ideClient;
     this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
+    this.sessionStateService = new SessionStateService();
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -646,6 +649,10 @@ export class Config {
 
   getEnableNextSpeakerCheck(): boolean {
     return this.enableNextSpeakerCheck;
+  }
+
+  getSessionStateService(): SessionStateService {
+    return this.sessionStateService;
   }
 
   async getGitService(): Promise<GitService> {
