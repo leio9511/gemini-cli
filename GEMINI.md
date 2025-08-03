@@ -14,6 +14,32 @@ This single command ensures that your changes meet all the quality gates of the 
 
 This project uses **Vitest** as its primary testing framework. When writing tests, aim to follow existing patterns. Key conventions include:
 
+### Running Specific Tests
+
+While `npm run preflight` and `npm test` are useful for running all checks, you may want to run a specific test file or even a single test case during development. This project uses NPM workspaces, so you need to scope your test command to the correct package.
+
+#### To run a single test file:
+
+Use the `-w` (or `--workspace`) flag to specify the package and pass the test file's path (relative to the package directory) after a `--` separator.
+
+**Example:** To run all tests in `gemini.test.tsx` within the `@google/gemini-cli` package:
+
+```bash
+npm test -w @google/gemini-cli -- src/gemini.test.tsx
+```
+
+#### To run a specific test or group of tests in a file:
+
+You can add the `-t <test-name-pattern>` argument to filter tests by their name (the string in a `describe` or `it` block).
+
+**Example:** To run only tests with "shows help" in their name within `gemini.test.tsx`:
+
+```bash
+npm test -w @google/gemini-cli -- src/gemini.test.tsx -t "shows help"
+```
+
+You can find the correct workspace name in the `name` field of the `package.json` file within the corresponding `packages/*` directory (e.g., `@google/gemini-cli-core` for `packages/core`).
+
 ### Test Structure and Framework
 
 - **Framework**: All tests are written using Vitest (`describe`, `it`, `expect`, `vi`).
