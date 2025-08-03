@@ -2,18 +2,18 @@
 
 **Status:** Proposal
 **Author:** lychen@google.com
-**Date:** August 2, 2025
+**Date:** August 3, 2025
 
 ### 1. Abstract
 
-This document proposes a significant upgrade to the file modification capabilities of the `gemini-cli` agent. The current `replace` tool, while simple, is prone to failure in multi-turn interactions, creating inefficient and error-prone workflows. We propose replacing it with a new, state-aware toolchain centered around a `safe_patch` tool. This new system will use an in-memory version counter and cryptographic hashing for state verification, and the unified diff format for modification payloads. This design will dramatically increase the reliability and efficiency of the agent, enable complex multi-part edits in a single operation, and provide clearer, more actionable feedback to the LLM, thereby minimizing context pollution and speeding up recovery from errors.
+This document proposes a significant upgrade to the file I/O capabilities of the `gemini-cli` agent. The current `replace` tool, while simple, is prone to failure in multi-turn interactions, creating inefficient and error-prone workflows. The CLI's `@` file-injection operator suffers from the same limitation. We propose replacing the current system with a new, state-aware toolchain centered around versioned file reads and state-verified file writes. This new system will use an in-memory version counter and cryptographic hashing for state verification across all content-reading tools (`read_file`, `read_many_files`) and file-writing tools (`write_file`, and a new `safe_patch` tool). The CLI frontend's `@` operator will also be upgraded to conform to this system. This design will dramatically increase the reliability and efficiency of the agent, enable complex multi-part edits in a single operation, and provide clearer, more actionable feedback to the LLM, thereby minimizing context pollution and speeding up recovery from errors.
 
 ### 2. Background & Problem Statement
 
 In practice, the `replace` tool is highly likely to fail during interactive sessions that involve multiple modifications to the same file. This stems from fundamental limitations in its design when used in a conversational, stateful context.
 
 *   **The Core Problem: State Synchronization Failure**
-    The agent's context (its memory of a file's content, derived from chat history) can easily become stale relative to the ground truth on the file system. The `replace` tool's strict `old_string` requirement, intended as a safety measure, makes it brittle; if the LLM references a stale version of the file from its history, the `old_string` will not be found, causing the tool to fail. This forces a manual, multi-step recovery process (re-reading the file, then re-attempting the change).
+    The agent's context (its memory of a file's content, derived from chat history) can easily become stale relative to the ground truth on the file system. The `replace` tool's strict `old_string` requirement, intended as a safety measure, makes it brittle; if the LLM references a stale version of the file from its history, the `old_string` will not be found, causing the tool to fail. This forces a manual, multi-step recovery process (re-reading the file, then re-attempting the change). The `@` operator, which injects file content directly into the prompt, creates the same problem by providing un-versioned data, forcing the LLM to immediately perform a version-aware `read_file` call to get a safe context before any modification.
 
 *   **Consequence 1: Inefficient, Multi-Turn Operations for Complex Edits**
     The `replace` tool can only modify one contiguous block of text at a time. To make N distinct changes to a file, the agent must call `replace` N times. This creates a slow, serial workflow that is frustrating for the user and inefficient for the agent.
@@ -35,26 +35,29 @@ The current system is caught in a cycle: its tool for modification (`replace`) i
 *   To provide the LLM with clear, deterministic signals (session-scoped versioning and hashes) for state tracking.
 *   To design a self-correcting feedback loop where tool failures provide the LLM with the exact information needed to recover.
 *   To maintain a high degree of safety, ensuring changes are only applied when the file state is precisely what the agent expects.
+*   To ensure the `@` operator is a first-class, efficient citizen of the state-aware ecosystem.
 
 #### Non-Goals
 
 *   This design does not introduce any persistent state to the user's project (e.g., no `.gemini_version` file).
 *   It does not change the fundamental single-threaded, turn-based nature of the agent's interaction model.
+*   Tools that only return file paths (`glob`, `list_directory`) or content snippets (`search_file_content`) will not be versioned, as a `read_file` or `read_many_files` call is still required to get the full content necessary for safe modification.
 
 ### 4. Proposed Design
 
-We will implement a new, state-aware toolchain by upgrading `read_file` and replacing `replace` with a new `safe_patch` tool. The guiding principle is: **Tools perform computation and state verification; the LLM performs reasoning and state carrying.**
+We will implement a new, state-aware toolchain by upgrading our file I/O tools and the CLI's `@` operator handler. The guiding principle is: **Tools perform computation and state verification; the LLM performs reasoning and state carrying.**
 
-#### 4.1. Component 1: Upgraded `read_file` Tool
+#### 4.1. Component 1: Upgraded File Reading Tools
 
-The `read_file` tool will be enhanced to become the primary source of versioned ground truth for the current session.
+The file reading tools will be enhanced to become the primary source of versioned ground truth for the current session.
 
 *   **Versioning:** A session-scoped, in-memory counter will be maintained within the `gemini-cli` instance. This counter will start at 0 each time `gemini-cli` is launched and will increment for each file-read or file-write operation.
-*   **Logic:** When called, `read_file` will:
+
+*   **`read_file` Logic:** When called, `read_file` will:
     1.  Read the target file's content.
     2.  Calculate a SHA-256 hash of the content.
     3.  Increment and retrieve the current session's version number.
-*   **Return Signature:** The tool will return a structured JSON object.
+*   **`read_file` Return Signature:** The tool will return a structured JSON object.
     ```json
     {
       "file_path": "/path/to/file.py",
@@ -62,6 +65,23 @@ The `read_file` tool will be enhanced to become the primary source of versioned 
       "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
       "content": "..."
     }
+    ```
+*   **`read_many_files` Logic & Return Signature:** This tool will perform the same versioning and hashing for each file it reads. It will return an array of the versioned file objects described for `read_file`.
+    ```json
+    [
+      {
+        "file_path": "/path/to/file.py",
+        "version": 2,
+        "sha256": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+        "content": "..."
+      },
+      {
+        "file_path": "/path/to/other_file.py",
+        "version": 3,
+        "sha256": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+        "content": "..."
+      }
+    ]
     ```
 
 #### 4.2. Component 2: The `safe_patch` Tool
@@ -104,7 +124,7 @@ This section describes the intelligent, emergent workflow we expect the LLM to a
 2.  **Scan Context:** The LLM first scans its chat history for the target file, looking for the entry with the **highest `version` number**.
 3.  **Decide:**
     *   **If a versioned entry is found:** The LLM uses the `content` and `sha256` from that entry to generate a `unified_diff` and call `safe_patch`. It does **not** call `read_file`.
-    *   **If no versioned entry is found:** The LLM knows it lacks safe context and its first action must be to call `read_file` to get it.
+    *   **If no versioned entry is found:** The LLM knows it lacks safe context and its first action must be to call `read_file` (or `read_many_files`) to get it. Using the `@` operator in the prompt achieves the same outcome.
 4.  **Process Result:** The LLM always receives a `latest_file_state` object from `safe_patch`.
     *   On success, it uses this new state for subsequent operations and can self-verify the change.
     *   On a state mismatch failure, it uses the provided `latest_file_state` to immediately retry the patch, enabling rapid, single-turn recovery.
@@ -137,7 +157,14 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
             *   Use the Node.js `crypto` module to calculate the SHA-256 hash of the file content.
             *   Change its `llmContent` return value from a plain string to the structured JSON object defined in section 4.1.
 
-3.  **Implement `SafePatchTool`:**
+3.  **Upgrade `ReadManyFilesTool`:**
+    *   **Where:** `packages/core/src/tools/read-many-files.ts`.
+    *   **How:**
+        *   The `ReadManyFilesTool` constructor will accept an instance of `SessionStateService`.
+        *   The `execute` method will be modified to iterate through the requested paths. For each file, it will perform the same versioning and hashing logic as `ReadFileTool`.
+        *   It will change its `llmContent` return value from an array of strings to an array of the structured JSON objects defined in section 4.1.
+
+4.  **Implement `SafePatchTool`:**
     *   **Where:** Create a new file `packages/core/src/tools/safe-patch.ts`.
     *   **How:**
         *   Create a new `SafePatchTool` class extending `BaseTool`.
@@ -160,7 +187,11 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
                 *   Return `success: true` with `message: "Patch applied successfully."` and the `latest_file_state` containing the newly written content, hash, and version.
         *   **Dependency:** The `diff` library's `applyPatch` function **MUST** be used for the final, strict application step. The "Fix the Diff" logic will need to be implemented as a new utility function.
 
-4.  **Integrate with Gemini-CLI Console UI:**
+5.  **Update CLI Frontend for `@` Operator:**
+    *   **Where:** `packages/cli/src/ui/hooks/atCommandProcessor.ts`.
+    *   **How:** The `handleAtCommand` function currently calls the `read_many_files` tool and processes its string output. This function must be modified to handle the new return type. It will now receive an array of versioned JSON objects. Its responsibility is to parse this array and format the structured data (including file path, version, hash, and content) into the prompt sent to the LLM, ensuring the LLM receives the full "versioned ground truth" without needing a follow-up tool call.
+
+6.  **Integrate with Gemini-CLI Console UI:**
     *   **Where:** Within the new `packages/core/src/tools/safe-patch.ts` file.
     *   **How:** The existing UI confirmation flow for `replace` and `write_file` can be reused seamlessly. This is handled by the `shouldConfirmExecute` method.
         *   The `SafePatchTool` will implement a `shouldConfirmExecute` method.
@@ -169,10 +200,10 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
         *   It will then construct and return a `ToolEditConfirmationDetails` object, just as the current tools do. The `fileDiff` property of this object will be the `unified_diff` from the LLM's parameters.
         *   The existing `gemini-cli` console logic will automatically render this object as an interactive diff for the user to approve or deny, requiring no changes to the core UI code.
 
-5.  **Register New/Modified Tools:**
+7.  **Register New/Modified Tools:**
     *   **Where:** `packages/core/src/config/config.ts`, within the `createToolRegistry` method.
     *   **How:**
-        *   The `ReadFileTool` registration will be updated to pass the `SessionStateService` instance.
+        *   The `ReadFileTool` and `ReadManyFilesTool` registrations will be updated to pass the `SessionStateService` instance.
         *   A new line will be added: `registerCoreTool(SafePatchTool, this, this.sessionStateService)`.
         *   The line for `registerCoreTool(EditTool, this)` will be removed to deprecate the old tool.
 
@@ -180,15 +211,17 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
 
 The `gemini-cli` model does not use a single, global "system prompt." Instead, each tool's `description` field serves as the just-in-time prompt for the LLM, defining the agent's workflow. This is the correct and established mechanism for providing LLM guidance.
 
-*   **Action:** The `description` fields for `read_file` and `safe_patch` will be meticulously crafted to include the new workflow instructions.
+*   **Action:** The `description` fields for the affected tools will be meticulously crafted to include the new workflow instructions.
 *   **`read_file` description update:**
     > "Reads the content of a file and returns it along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files with the `safe_patch` tool."
+*   **`read_many_files` description update:**
+    > "Reads the content of multiple files and returns an array of objects, where each object contains the file content along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files."
 *   **`safe_patch` description:**
     > "Applies a set of changes to a file using a unified diff patch. This is the preferred tool for all file modifications.
     >
     > **Usage Protocol:**
     > 1.  To use this tool, you must operate on the latest version of the file available in your context. Identify this by finding the file content with the **highest version number**.
-    > 2.  If no versioned content is available, you **MUST** call `read_file` first to get it.
+    > 2.  If no versioned content is available, you **MUST** call `read_file` or `read_many_files` first to get it.
     > 3.  When generating the `unified_diff`, you **MUST** include at least 10 lines of unchanged context around each change hunk (equivalent to `diff -U 10`) to ensure the patch can be applied reliably.
     > 4.  You **MUST** provide the `sha256` hash that was returned with that version as the `base_content_sha256` parameter. This hash acts as a lock; the operation will fail if the file has been modified since you read it."
 
@@ -210,7 +243,14 @@ Testing will follow the existing project convention of co-locating `*.test.ts` f
     *   Add a test to verify that the returned `sha256` hash is correct for a known file content.
     *   Mocks for `fs` and `SessionStateService` will be required.
 
-3.  **`SafePatchTool` Tests (`packages/core/src/tools/safe-patch.test.ts`):**
+3.  **`ReadManyFilesTool` Tests (`packages/core/src/tools/read-many-files.test.ts`):**
+    *   The existing test file will be modified.
+    *   Update tests to assert that the `llmContent` is now an array of the structured JSON objects.
+    *   Verify that version numbers increment correctly for each file read within a single call.
+    *   Verify that the `sha256` hash is correct for each file.
+    *   Mocks for `fs` and `SessionStateService` will be required.
+
+4.  **`SafePatchTool` Tests (`packages/core/src/tools/safe-patch.test.ts`):**
     *   A new test file will be created to cover the multi-stage logic of the tool.
     *   **Success Case (Correct Patch):** Test that a valid, correct patch is applied successfully when the `base_content_sha256` matches. Verify the new content and the successful return object.
     *   **Success Case (Corrected Patch):** Test that a patch with an intentionally incorrect line number but correct context lines is successfully "fixed" and applied. Verify the final content is correct.
@@ -219,3 +259,7 @@ Testing will follow the existing project convention of co-locating `*.test.ts` f
     *   **Failure Case (Internal Patch Error):** Use `vi.spyOn` to mock the `applyPatch` function from the `diff` library and force it to return `false`. Test that the tool correctly catches this and returns the "Internal Error" message.
     *   **File Creation Case:** Test that the tool can create a new file when the original file does not exist (the hash of an empty string can be used as the base).
 
+5.  **`atCommandProcessor` Tests (`packages/cli/src/ui/hooks/atCommandProcessor.test.ts`):**
+    *   The existing test file will be modified.
+    *   Mock the `read_many_files` tool to return the new structured data (an array of versioned JSON objects).
+    *   Add a new test to verify that the `handleAtCommand` function correctly parses this new structure and formats it into the `processedQuery` parts sent to the LLM, ensuring all versioning information is present.
