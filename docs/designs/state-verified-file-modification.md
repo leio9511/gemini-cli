@@ -129,7 +129,7 @@ This section describes the intelligent, emergent workflow we expect the LLM to a
     *   On success, it uses this new state for subsequent operations and can self-verify the change.
     *   On a state mismatch failure, it uses the provided `latest_file_state` to immediately retry the patch, enabling rapid, single-turn recovery.
 
-### 5. Detailed Design & Implementation Plan
+### 5. Detailed Design
 
 This plan is based on the existing structure of the `gemini-cli` codebase.
 
@@ -294,3 +294,133 @@ Testing will follow the existing project convention of co-locating `*.test.ts` f
     *   The existing test file will be modified.
     *   Mock the `read_many_files` tool to return the new structured data (an array of versioned JSON objects).
     *   Add a new test to verify that the `handleAtCommand` function correctly parses this new structure and formats it into the `processedQuery` parts sent to the LLM, ensuring all versioning information is present.
+
+### 8. Agile Implementation Plan (TDD Flow)
+
+This plan breaks down the implementation into distinct phases, each ending with a verifiable milestone. This approach allows for iterative development and early integration testing. A junior engineer should be able to follow these tasks sequentially.
+
+---
+
+#### **Phase 1: Core Services & Versioned Reading (The Foundation)**
+
+**Goal:** Establish the non-user-facing backbone of the system by creating the versioning service and the reusable logic for creating versioned file objects.
+
+**Tasks (in TDD order):**
+
+1.  **Task: Test `SessionStateService`**
+    *   Create `packages/core/src/services/session-state-service.test.ts`.
+    *   Write tests to verify that `getNextVersion()` starts at 1, increments correctly on subsequent calls, and that a new service instance resets the counter.
+
+2.  **Task: Implement `SessionStateService`**
+    *   Create `packages/core/src/services/session-state-service.ts`.
+    *   Write the `SessionStateService` class with the `versionCounter` and `getNextVersion` method to make the tests pass.
+    *   Instantiate it within the `Config` class (`packages/core/src/config/config.ts`) so it can be passed to tools.
+
+3.  **Task: Test the `createVersionedFileObject` Utility**
+    *   In a relevant existing test file like `packages/core/src/utils/fileUtils.test.ts` (or a new one), add a test suite for the new `createVersionedFileObject` utility.
+    *   Write tests that mock `fs` and `SessionStateService`. Verify that for a given file path, the utility correctly reads the file, calls for a version number, calculates the correct SHA-256 hash, and returns a perfectly structured JSON object.
+
+4.  **Task: Implement the `createVersionedFileObject` Utility**
+    *   In `packages/core/src/utils/fileUtils.ts` (or a similar new utility file), create the `async function createVersionedFileObject(...)`.
+    *   Implement the logic using `fs.readFile`, `crypto`, and the `SessionStateService` to make the tests pass.
+
+5.  **Task: Refactor `ReadFileTool` Tests**
+    *   Modify `packages/core/src/tools/read-file.test.ts`.
+    *   Remove mocks for `fs` and `crypto`. Instead, mock the new `createVersionedFileObject` utility.
+    *   Update the tests to only verify that the tool's `execute` method calls the utility function once with the correct parameters and returns whatever the mock provides.
+
+6.  **Task: Refactor `ReadFileTool` Implementation**
+    *   Modify `packages/core/src/tools/read-file.ts`.
+    *   Update its constructor to accept the `SessionStateService`.
+    *   Simplify the `execute` method to a single call to the `createVersionedFileObject` utility.
+
+7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation**
+    *   Follow the same TDD pattern as for `ReadFileTool`: first update the tests in `packages/core/src/tools/read-many-files.test.ts` to mock the utility, then refactor the implementation in `packages/core/src/tools/read-many-files.ts` to use it in a loop.
+
+**Milestone 1: Verifiable Versioned Reads**
+*   **Verification:** At this stage, the core logic is complete. Although the main CLI won't show visible changes, correctness can be verified by writing a small, temporary integration test script. This script should:
+    1.  Instantiate the `Config` and get the `ReadFileTool` and `ReadManyFilesTool`.
+    2.  Call `execute` on both tools for known files.
+    3.  Assert that the returned `llmContent` is the new structured JSON (or an array of them).
+    4.  Assert that the `version` number increments sequentially across multiple tool calls.
+
+---
+
+#### **Phase 2: Frontend Integration (`@` Operator)**
+
+**Goal:** Connect the versioned reading foundation to the user-facing `@` operator.
+
+**Tasks (in TDD order):**
+
+1.  **Task: Update `@` Processor Tests**
+    *   Modify `packages/cli/src/ui/hooks/atCommandProcessor.test.ts`.
+    *   In the tests for `handleAtCommand`, mock the `read_many_files` tool.
+    *   Change the mock's return value to be the new array of structured JSON objects.
+    *   Write assertions to verify that the `processedQuery` parts passed to the LLM now contain the fully formatted, structured versioned data.
+
+2.  **Task: Update `@` Processor Implementation**
+    *   Modify the `handleAtCommand` function in `packages/cli/src/ui/hooks/atCommandProcessor.ts`.
+    *   Update the logic that processes the result from `read_many_files` to handle the array of JSON objects instead of an array of strings. Ensure it formats this structured data correctly into the final prompt.
+
+**Milestone 2: `@` Operator is State-Aware**
+*   **Verification:** This change is now user-visible.
+    1.  Run the `gemini-cli` executable.
+    2.  Execute a prompt containing an `@` command (e.g., `gemini "Summarize this file: @/path/to/file.txt"`).
+    3.  Using the debug logs (`--debug` flag), inspect the final prompt being sent to the model.
+    4.  **Confirm** that the file content has been injected as a structured JSON block containing `file_path`, `version`, `sha256`, and `content`.
+
+---
+
+#### **Phase 3: State-Aware Modification (`safe_patch`)**
+
+**Goal:** Implement the new, safe file modification tool and integrate it into the CLI.
+
+**Tasks (in TDD order):**
+
+1.  **Task: Test `SafePatchTool`**
+    *   Create `packages/core/src/tools/safe-patch.test.ts`.
+    *   Write comprehensive tests for all success and failure cases as detailed in the "Test Plan" section (hash mismatch, invalid diff, internal errors, etc.).
+
+2.  **Task: Implement `SafePatchTool`**
+    *   Create `packages/core/src/tools/safe-patch.ts`.
+    *   Implement the `SafePatchTool` class and its `execute` method, including the state verification, "Fix the Diff", and "Apply Strict Patch" stages, to make the tests pass.
+
+3.  **Task: Implement UI Confirmation**
+    *   Implement the `shouldConfirmExecute` method within `SafePatchTool` to handle the interactive diff confirmation.
+
+4.  **Task: Register `SafePatchTool`**
+    *   In `packages/core/src/config/config.ts`, register the new `SafePatchTool` and pass it the `SessionStateService`.
+    *   Remove the registration for the old `EditTool`.
+
+**Milestone 3: Safe, Atomic Patching is Functional**
+*   **Verification:** The primary modification workflow is now testable end-to-end.
+    1.  Run `gemini-cli`.
+    2.  Use the `@` operator to read a file into context.
+    3.  Ask the LLM to make a change to that file.
+    4.  **Confirm** that the interactive diff confirmation for `safe_patch` appears.
+    5.  Approve the change and verify the file is correctly modified on disk.
+    6.  Test the state mismatch case: read a file with `@`, modify it manually in a separate editor, then ask the LLM to patch it. **Confirm** the tool call fails with the "State Mismatch" error in the CLI.
+
+---
+
+#### **Phase 4: Finalizing the Toolchain (`write_file` and Documentation)**
+
+**Goal:** Upgrade the remaining file-writing tool and update all LLM guidance.
+
+**Tasks (in TDD order):**
+
+1.  **Task: Update `WriteFileTool` Tests**
+    *   In `packages/core/src/tools/write-file.test.ts`, add tests for the new optional `base_content_sha256` parameter, covering both success (match) and failure (mismatch) cases.
+
+2.  **Task: Update `WriteFileTool` Implementation**
+    *   Modify `packages/core/src/tools/write-file.ts` to perform the hash check if `base_content_sha256` is provided.
+
+3.  **Task: Update LLM Guidance**
+    *   Update the `description` fields for `read_file`, `read_many_files`, `safe_patch`, and `write_file` as detailed in the "LLM Guidance and Tool Discovery" section.
+
+**Milestone 4: Fully State-Aware I/O Toolchain**
+*   **Verification:** The entire feature set is now complete.
+    1.  Perform full end-to-end manual testing of all read and write/patch flows.
+    2.  Test the `write_file` tool's new safety feature by attempting to overwrite a file with an incorrect hash.
+    3.  Review the output of the `/tools` command in the CLI to ensure the new tool descriptions are clear and accurate.
+    4.  The project is now considered feature-complete.
