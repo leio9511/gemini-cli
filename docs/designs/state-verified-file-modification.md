@@ -401,7 +401,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 - **Verification:** All tests for the utility are passing (`npm test -w @google/gemini-cli-core -- src/utils/fileUtils.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit e68535d3)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-5.  **Task: Refactor `ReadFileTool` Tests**
+5.  **Task: Refactor `ReadFileTool` Tests** [DONE]
     - Modify `packages/core/src/tools/read-file.test.ts`.
     - Remove mocks for `fs` and `crypto`. Instead, mock the new `createVersionedFileObject` utility.
     - Update the tests to only verify that the tool's `execute` method calls the utility function once with the correct parameters and returns whatever the mock provides.
@@ -410,15 +410,15 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts
       ```
 
-6.  **Task: Refactor `ReadFileTool` Implementation**
+6.  **Task: Refactor `ReadFileTool` Implementation** [DONE]
     - Modify `packages/core/src/tools/read-file.ts`.
     - Update its constructor to accept the `SessionStateService`.
     - Simplify the `execute` method to a single call to the `createVersionedFileObject` utility.
 
-**Check Point 1.3: `ReadFileTool` is Version-Aware**
+**Check Point 1.3: `ReadFileTool` is Version-Aware** [DONE]
 
 - **State:** Green.
-- **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
+- **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit fc5de2e9)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation**
