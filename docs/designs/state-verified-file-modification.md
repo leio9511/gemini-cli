@@ -148,23 +148,48 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
         ```
     *   It will be instantiated once in the `Config` class (`packages/core/src/config/config.ts`) and passed to the tools that need it, ensuring a single counter per `gemini-cli` session.
 
-2.  **Upgrade `ReadFileTool`:**
+2.  **Create a Reusable File Versioning Utility (DRY Principle):**
+    *   **Goal:** To avoid duplicating the versioning and hashing logic, we will create a single, reusable function that both `ReadFileTool` and `ReadManyFilesTool` will use.
+    *   **Where:** This logic could be implemented as a new, private helper method within a shared service that both tools have access to, for instance, a new `FileService`. A simpler approach is to create a static helper function. For the purpose of this design, let's define it as a utility function.
+    *   **How:** Create a new utility function, for example `createVersionedFileObject`, in a suitable location like `packages/core/src/utils/fileUtils.ts`.
+        ```typescript
+        // In a new or existing utility file
+        import * as fs from 'fs/promises';
+        import * as crypto from 'crypto';
+        import { SessionStateService } from '../services/session-state-service';
+
+        export async function createVersionedFileObject(
+          filePath: string,
+          sessionStateService: SessionStateService
+        ): Promise<{ file_path: string; version: number; sha256: string; content: string; }> {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const sha256 = crypto.createHash('sha256').update(content).digest('hex');
+          const version = sessionStateService.getNextVersion();
+          
+          return {
+            file_path: filePath,
+            version,
+            sha256,
+            content,
+          };
+        }
+        ```
+
+3.  **Upgrade `ReadFileTool`:**
     *   **Where:** `packages/core/src/tools/read-file.ts`.
     *   **How:**
         *   The `ReadFileTool` constructor will accept an instance of `SessionStateService`.
-        *   The `execute` method will be modified to:
-            *   Call `sessionStateService.getNextVersion()` to get the new version number.
-            *   Use the Node.js `crypto` module to calculate the SHA-256 hash of the file content.
-            *   Change its `llmContent` return value from a plain string to the structured JSON object defined in section 4.1.
+        *   The `execute` method will be simplified to call the new utility function: `createVersionedFileObject(filePath, this.sessionStateService)`.
+        *   It will return the resulting structured JSON object directly.
 
-3.  **Upgrade `ReadManyFilesTool`:**
+4.  **Upgrade `ReadManyFilesTool`:**
     *   **Where:** `packages/core/src/tools/read-many-files.ts`.
     *   **How:**
-        *   The `ReadManyFilesTool` constructor will accept an instance of `SessionStateService`.
-        *   The `execute` method will be modified to iterate through the requested paths. For each file, it will perform the same versioning and hashing logic as `ReadFileTool`.
-        *   It will change its `llmContent` return value from an array of strings to an array of the structured JSON objects defined in section 4.1.
+        *   The `ReadManyFilesTool` constructor will also accept an instance of `SessionStateService`.
+        *   The `execute` method will iterate through the list of requested file paths. For each path, it will call the `createVersionedFileObject(path, this.sessionStateService)` utility function.
+        *   It will collect the results into an array and return that array of structured JSON objects.
 
-4.  **Implement `SafePatchTool`:**
+5.  **Implement `SafePatchTool`:**
     *   **Where:** Create a new file `packages/core/src/tools/safe-patch.ts`.
     *   **How:**
         *   Create a new `SafePatchTool` class extending `BaseTool`.
@@ -187,11 +212,11 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
                 *   Return `success: true` with `message: "Patch applied successfully."` and the `latest_file_state` containing the newly written content, hash, and version.
         *   **Dependency:** The `diff` library's `applyPatch` function **MUST** be used for the final, strict application step. The "Fix the Diff" logic will need to be implemented as a new utility function.
 
-5.  **Update CLI Frontend for `@` Operator:**
+6.  **Update CLI Frontend for `@` Operator:**
     *   **Where:** `packages/cli/src/ui/hooks/atCommandProcessor.ts`.
     *   **How:** The `handleAtCommand` function currently calls the `read_many_files` tool and processes its string output. This function must be modified to handle the new return type. It will now receive an array of versioned JSON objects. Its responsibility is to parse this array and format the structured data (including file path, version, hash, and content) into the prompt sent to the LLM, ensuring the LLM receives the full "versioned ground truth" without needing a follow-up tool call.
 
-6.  **Integrate with Gemini-CLI Console UI:**
+7.  **Integrate with Gemini-CLI Console UI:**
     *   **Where:** Within the new `packages/core/src/tools/safe-patch.ts` file.
     *   **How:** The existing UI confirmation flow for `replace` and `write_file` can be reused seamlessly. This is handled by the `shouldConfirmExecute` method.
         *   The `SafePatchTool` will implement a `shouldConfirmExecute` method.
@@ -200,7 +225,7 @@ This plan is based on the existing structure of the `gemini-cli` codebase.
         *   It will then construct and return a `ToolEditConfirmationDetails` object, just as the current tools do. The `fileDiff` property of this object will be the `unified_diff` from the LLM's parameters.
         *   The existing `gemini-cli` console logic will automatically render this object as an interactive diff for the user to approve or deny, requiring no changes to the core UI code.
 
-7.  **Register New/Modified Tools:**
+8.  **Register New/Modified Tools:**
     *   **Where:** `packages/core/src/config/config.ts`, within the `createToolRegistry` method.
     *   **How:**
         *   The `ReadFileTool` and `ReadManyFilesTool` registrations will be updated to pass the `SessionStateService` instance.
@@ -229,28 +254,34 @@ This approach embeds the instructions directly with the tool definition, which i
 
 ### 7. Test Plan
 
-Testing will follow the existing project convention of co-locating `*.test.ts` files with the source files, using the `vitest` framework.
+Testing will follow the existing project convention of co-locating `*.test.ts` files with the source files, using the `vitest` framework. The plan is designed to test each component's specific responsibility.
 
 1.  **`SessionStateService` Tests (`packages/core/src/services/session-state-service.test.ts`):**
     *   A new test file will be created.
     *   Test that `getNextVersion()` starts at 1 and increments correctly on subsequent calls.
     *   Test that a new instance of the service resets the counter to 0.
 
-2.  **`ReadFileTool` Tests (`packages/core/src/tools/read-file.test.ts`):**
-    *   The existing test file will be modified.
-    *   Update existing tests to assert that the `llmContent` is now the structured JSON object.
-    *   Add new tests to verify that the `version` number increments correctly across multiple calls to `read_file`.
-    *   Add a test to verify that the returned `sha256` hash is correct for a known file content.
-    *   Mocks for `fs` and `SessionStateService` will be required.
+2.  **`createVersionedFileObject` Utility Tests (`packages/core/src/utils/fileUtils.test.ts`):**
+    *   A new test suite will be created for the new reusable utility function.
+    *   This suite will be responsible for testing the core versioning logic in isolation.
+    *   **Test Correctness:** For a known file content, verify that the function correctly reads the content, calculates the expected SHA-256 hash, and calls the mocked `sessionStateService.getNextVersion()` once.
+    *   **Test Structure:** Assert that the returned object has the correct structure and contains the correct `file_path`, `version`, `sha256`, and `content`.
+    *   **Error Handling:** Test how the function behaves if `fs.readFile` throws an error (e.g., file not found).
+    *   Mocks for `fs` and `SessionStateService` will be required here.
 
-3.  **`ReadManyFilesTool` Tests (`packages/core/src/tools/read-many-files.test.ts`):**
+3.  **`ReadFileTool` Tests (`packages/core/src/tools/read-file.test.ts`):**
     *   The existing test file will be modified.
-    *   Update tests to assert that the `llmContent` is now an array of the structured JSON objects.
-    *   Verify that version numbers increment correctly for each file read within a single call.
-    *   Verify that the `sha256` hash is correct for each file.
-    *   Mocks for `fs` and `SessionStateService` will be required.
+    *   **Test Orchestration, Not Implementation:** These tests will now mock the `createVersionedFileObject` utility function.
+    *   Verify that the tool's `execute` method calls `createVersionedFileObject` exactly once with the correct `filePath` and `sessionStateService` instance.
+    *   Assert that the tool returns the exact object that the mocked utility function provides.
 
-4.  **`SafePatchTool` Tests (`packages/core/src/tools/safe-patch.test.ts`):**
+4.  **`ReadManyFilesTool` Tests (`packages/core/src/tools/read-many-files.test.ts`):**
+    *   The existing test file will be modified.
+    *   **Test Orchestration, Not Implementation:** These tests will also mock the `createVersionedFileObject` utility function.
+    *   Verify that the tool's `execute` method iterates through the input paths and calls `createVersionedFileObject` for each one.
+    *   Assert that the tool returns an array containing the exact objects that the mocked utility function provides, in the correct order.
+
+5.  **`SafePatchTool` Tests (`packages/core/src/tools/safe-patch.test.ts`):**
     *   A new test file will be created to cover the multi-stage logic of the tool.
     *   **Success Case (Correct Patch):** Test that a valid, correct patch is applied successfully when the `base_content_sha256` matches. Verify the new content and the successful return object.
     *   **Success Case (Corrected Patch):** Test that a patch with an intentionally incorrect line number but correct context lines is successfully "fixed" and applied. Verify the final content is correct.
@@ -259,7 +290,7 @@ Testing will follow the existing project convention of co-locating `*.test.ts` f
     *   **Failure Case (Internal Patch Error):** Use `vi.spyOn` to mock the `applyPatch` function from the `diff` library and force it to return `false`. Test that the tool correctly catches this and returns the "Internal Error" message.
     *   **File Creation Case:** Test that the tool can create a new file when the original file does not exist (the hash of an empty string can be used as the base).
 
-5.  **`atCommandProcessor` Tests (`packages/cli/src/ui/hooks/atCommandProcessor.test.ts`):**
+6.  **`atCommandProcessor` Tests (`packages/cli/src/ui/hooks/atCommandProcessor.test.ts`):**
     *   The existing test file will be modified.
     *   Mock the `read_many_files` tool to return the new structured data (an array of versioned JSON objects).
     *   Add a new test to verify that the `handleAtCommand` function correctly parses this new structure and formats it into the `processedQuery` parts sent to the LLM, ensuring all versioning information is present.
