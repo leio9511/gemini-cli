@@ -10,14 +10,11 @@ import { makeRelative, shortenPath } from '../utils/paths.js';
 import { BaseTool, Icon, ToolLocation, ToolResult } from './tools.js';
 import { Type } from '@google/genai';
 import {
+  createVersionedFileObject,
   processSingleFileContent,
-  getSpecificMimeType,
 } from '../utils/fileUtils.js';
 import { Config } from '../config/config.js';
-import {
-  recordFileOperationMetric,
-  FileOperation,
-} from '../telemetry/metrics.js';
+import { SessionStateService } from '../services/session-state-service.js';
 
 /**
  * Parameters for the ReadFile tool
@@ -44,6 +41,7 @@ export interface ReadFileToolParams {
  */
 export class ReadFileTool extends BaseTool<ReadFileToolParams, ToolResult> {
   static readonly Name: string = 'read_file';
+  private sessionStateService: SessionStateService;
 
   constructor(private config: Config) {
     super(
@@ -73,6 +71,7 @@ export class ReadFileTool extends BaseTool<ReadFileToolParams, ToolResult> {
         type: Type.OBJECT,
       },
     );
+    this.sessionStateService = this.config.getSessionStateService();
   }
 
   validateToolParams(params: ReadFileToolParams): string | null {
@@ -137,36 +136,37 @@ export class ReadFileTool extends BaseTool<ReadFileToolParams, ToolResult> {
       };
     }
 
-    const result = await processSingleFileContent(
+    const processedFile = await processSingleFileContent(
       params.absolute_path,
       this.config.getTargetDir(),
       params.offset,
       params.limit,
     );
 
-    if (result.error) {
+    if (processedFile.error) {
       return {
-        llmContent: result.error, // The detailed error for LLM
-        returnDisplay: result.returnDisplay || 'Error reading file', // User-friendly error
+        llmContent: processedFile.error,
+        returnDisplay: processedFile.returnDisplay || 'Error reading file',
       };
     }
 
-    const lines =
-      typeof result.llmContent === 'string'
-        ? result.llmContent.split('\n').length
-        : undefined;
-    const mimetype = getSpecificMimeType(params.absolute_path);
-    recordFileOperationMetric(
-      this.config,
-      FileOperation.READ,
-      lines,
-      mimetype,
-      path.extname(params.absolute_path),
-    );
+    // We only version text files that can be patched.
+    if (typeof processedFile.llmContent === 'string') {
+      const versionedFile = await createVersionedFileObject(
+        params.absolute_path,
+        this.sessionStateService,
+        processedFile.llmContent,
+      );
+      return {
+        llmContent: JSON.stringify(versionedFile, null, 2),
+        returnDisplay: `Read and versioned ${params.absolute_path}`,
+      };
+    }
 
+    // For non-text content (images, etc.), return it directly without versioning.
     return {
-      llmContent: result.llmContent || '',
-      returnDisplay: result.returnDisplay || '',
+      llmContent: processedFile.llmContent,
+      returnDisplay: processedFile.returnDisplay || '',
     };
   }
 }

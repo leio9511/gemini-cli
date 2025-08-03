@@ -700,7 +700,7 @@ export class Config {
     };
 
     registerCoreTool(LSTool, this);
-    registerCoreTool(ReadFileTool, this);
+    registerCoreTool(ReadFileTool, this, this.sessionStateService);
     registerCoreTool(GrepTool, this);
     registerCoreTool(GlobTool, this);
     registerCoreTool(EditTool, this);

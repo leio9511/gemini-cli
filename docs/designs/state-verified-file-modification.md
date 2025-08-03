@@ -307,7 +307,6 @@ The `gemini-cli` model does not use a single, global "system prompt." Instead, e
   > 2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from `read_file` or a previous tool call). You **MUST** provide the `sha256` from that version as the `base_content_sha256`. This prevents accidental overwrites of files that have changed.
   > 3.  If you attempt to write to an existing file path without providing a `base_content_sha256`, the operation will fail as a safety measure."
 
-
 This approach embeds the instructions directly with the tool definition, which is the idiomatic pattern for `gemini-cli`. The LLM will always receive the latest instructions and state from the tool's output, enabling it to self-correct and follow the protocol.
 
 ### 7. Test Plan
@@ -544,7 +543,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
     - In `packages/core/src/tools/write-file.test.ts`, rewrite the tests to cover the new state-aware logic comprehensively.
     - **Test Create:** Verify the tool correctly creates a new file when the path does not exist and no `base_content_sha256` is provided. Assert that the returned `latest_file_state` is correct.
     - **Test Safe Overwrite:** Verify the tool correctly overwrites an existing file when the correct `base_content_sha256` is provided. Assert the file content is updated and the returned `latest_file_state` is correct.
-    - **Test Failure (Missing Hash):** Verify the tool fails with a specific error message if it's called on an existing file path *without* providing a `base_content_sha256`. Assert the file is unchanged and the returned `latest_file_state` reflects the unchanged file.
+    - **Test Failure (Missing Hash):** Verify the tool fails with a specific error message if it's called on an existing file path _without_ providing a `base_content_sha256`. Assert the file is unchanged and the returned `latest_file_state` reflects the unchanged file.
     - **Test Failure (Hash Mismatch):** Verify the tool fails with a "State Mismatch" error if the provided `base_content_sha256` does not match the on-disk file's hash. Assert the file is unchanged and the returned `latest_file_state` contains the new, correct state information from the disk.
     - **Test Return Value:** In all cases (success or failure), verify the tool returns a `success` boolean and the `latest_file_state` object with the correct, up-to-date `file_path`, `version`, `sha256`, and `content`.
     - **How to run tests:**

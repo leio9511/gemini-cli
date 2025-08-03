@@ -553,14 +553,12 @@ describe('fileUtils', () => {
   });
 });
 
-// This describe block is testing a function that does not exist yet.
-// We are following the TDD process.
 describe('createVersionedFileObject', () => {
   let sessionStateService: SessionStateService;
 
   beforeEach(() => {
-    // Create a real session state service and spy on its method
     sessionStateService = new SessionStateService();
+    vi.spyOn(sessionStateService, 'getNextVersion');
   });
 
   it('should return a versioned file object with correct content, hash, and version', async () => {
@@ -570,16 +568,12 @@ describe('createVersionedFileObject', () => {
       'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9';
     const expectedVersion = 1;
 
-    // Mock the dependencies
-    vi.spyOn(fsPromises, 'readFile').mockResolvedValue(content);
-    vi.spyOn(sessionStateService, 'getNextVersion');
-
     const result = await createVersionedFileObject(
       filePath,
       sessionStateService,
+      content,
     );
 
-    expect(fsPromises.readFile).toHaveBeenCalledWith(filePath, 'utf-8');
     expect(sessionStateService.getNextVersion).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       file_path: filePath,
@@ -589,19 +583,20 @@ describe('createVersionedFileObject', () => {
     });
   });
 
-  it('should throw an error if fs.readFile fails', async () => {
-    const filePath = '/test/nonexistent.txt';
-    const readError = new Error('File not found');
+  it('should correctly calculate hash for different content', async () => {
+    const filePath = '/test/another.txt';
+    const content = 'some other content';
+    const expectedHash =
+      'f73f16ede021d01efecf627b5e658be52293f167cfe06c6b8d0e591cb25b68c9';
+    const expectedVersion = 1;
 
-    // Mock the dependencies
-    vi.spyOn(fsPromises, 'readFile').mockRejectedValue(readError);
-    const getNextVersionSpy = vi.spyOn(sessionStateService, 'getNextVersion');
+    const result = await createVersionedFileObject(
+      filePath,
+      sessionStateService,
+      content,
+    );
 
-    await expect(
-      createVersionedFileObject(filePath, sessionStateService),
-    ).rejects.toThrow(readError);
-
-    // Ensure getNextVersion is not called if reading fails
-    expect(getNextVersionSpy).not.toHaveBeenCalled();
+    expect(result.sha256).toBe(expectedHash);
+    expect(result.version).toBe(expectedVersion);
   });
 });
