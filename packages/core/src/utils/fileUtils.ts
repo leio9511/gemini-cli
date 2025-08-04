@@ -373,16 +373,18 @@ export async function processSingleFileContent(
   }
 }
 
-export async function createVersionedFileObject(
-  filePath: string,
-  sessionStateService: SessionStateService,
-  content: string,
-): Promise<{
+export interface VersionedFile {
   file_path: string;
   version: number;
   sha256: string;
   content: string;
-}> {
+}
+
+export async function createVersionedFileObject(
+  filePath: string,
+  sessionStateService: SessionStateService,
+): Promise<VersionedFile> {
+  const content = await fsPromises.readFile(filePath, 'utf-8');
   const sha256 = crypto.createHash('sha256').update(content).digest('hex');
   const version = sessionStateService.getNextVersion();
 

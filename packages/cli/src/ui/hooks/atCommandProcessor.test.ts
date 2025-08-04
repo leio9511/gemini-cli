@@ -61,6 +61,9 @@ describe('handleAtCommand', () => {
         isPathWithinWorkspace: () => true,
         getDirectories: () => [testRootDir],
       }),
+      getSessionStateService: () => ({
+        getNextVersion: () => 1,
+      }),
     } as unknown as Config;
 
     const registry = new ToolRegistry(mockConfig);
@@ -138,16 +141,10 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `@${filePath}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${filePath}:\n` },
-        { text: fileContent },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual(fileContent);
+    expect(resultJson.file_path).toEqual(filePath);
+
     expect(mockAddItem).toHaveBeenCalledWith(
       { type: 'user', text: query },
       125,
@@ -180,16 +177,10 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `@${resolvedGlob}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${filePath}:\n` },
-        { text: fileContent },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual(fileContent);
+    expect(resultJson.file_path).toEqual(filePath);
+
     expect(mockAddItem).toHaveBeenCalledWith(
       { type: 'user', text: query },
       126,
@@ -218,16 +209,10 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `${textBefore}@${filePath}${textAfter}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${filePath}:\n` },
-        { text: fileContent },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual(fileContent);
+    expect(resultJson.file_path).toEqual(filePath);
+
     expect(mockAddItem).toHaveBeenCalledWith(
       { type: 'user', text: query },
       128,
@@ -252,16 +237,10 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `@${filePath}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${filePath}:\n` },
-        { text: fileContent },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual(fileContent);
+    expect(resultJson.file_path).toEqual(filePath);
+
     expect(mockAddItem).toHaveBeenCalledWith(
       { type: 'user', text: query },
       125,
@@ -297,18 +276,13 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: query },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${file1Path}:\n` },
-        { text: content1 },
-        { text: `\nContent from @${file2Path}:\n` },
-        { text: content2 },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson1 = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson1.content).toEqual(content1);
+    expect(resultJson1.file_path).toEqual(file1Path);
+
+    const resultJson2 = JSON.parse(result.processedQuery[5].text);
+    expect(resultJson2.content).toEqual(content2);
+    expect(resultJson2.file_path).toEqual(file2Path);
   });
 
   it('should handle multiple @file references with interleaved text', async () => {
@@ -336,18 +310,13 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: query },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${file1Path}:\n` },
-        { text: content1 },
-        { text: `\nContent from @${file2Path}:\n` },
-        { text: content2 },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson1 = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson1.content).toEqual(content1);
+    expect(resultJson1.file_path).toEqual(file1Path);
+
+    const resultJson2 = JSON.parse(result.processedQuery[5].text);
+    expect(resultJson2.content).toEqual(content2);
+    expect(resultJson2.file_path).toEqual(file2Path);
   });
 
   it('should handle a mix of valid, invalid, and lone @ references', async () => {
@@ -373,20 +342,14 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        {
-          text: `Look at @${file1Path} then @${invalidFile} and also just @ symbol, then @${file2Path}`,
-        },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${file2Path}:\n` },
-        { text: content2 },
-        { text: `\nContent from @${file1Path}:\n` },
-        { text: content1 },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson1 = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson1.content).toEqual(content2);
+    expect(resultJson1.file_path).toEqual(file2Path);
+
+    const resultJson2 = JSON.parse(result.processedQuery[5].text);
+    expect(resultJson2.content).toEqual(content1);
+    expect(resultJson2.file_path).toEqual(file1Path);
+
     expect(mockOnDebugMessage).toHaveBeenCalledWith(
       `Path ${invalidFile} not found directly, attempting glob search.`,
     );
@@ -477,16 +440,9 @@ describe('handleAtCommand', () => {
         signal: abortController.signal,
       });
 
-      expect(result).toEqual({
-        processedQuery: [
-          { text: `@${validFile}` },
-          { text: '\n--- Content from referenced files ---' },
-          { text: `\nContent from @${validFile}:\n` },
-          { text: 'console.log("Hello world");' },
-          { text: '\n--- End of content ---' },
-        ],
-        shouldProceed: true,
-      });
+      const resultJson = JSON.parse(result.processedQuery[3].text);
+      expect(resultJson.content).toEqual('console.log("Hello world");');
+      expect(resultJson.file_path).toEqual(validFile);
     });
 
     it('should handle mixed git-ignored and valid files', async () => {
@@ -510,16 +466,10 @@ describe('handleAtCommand', () => {
         signal: abortController.signal,
       });
 
-      expect(result).toEqual({
-        processedQuery: [
-          { text: `@${validFile} @${gitIgnoredFile}` },
-          { text: '\n--- Content from referenced files ---' },
-          { text: `\nContent from @${validFile}:\n` },
-          { text: '# Project README' },
-          { text: '\n--- End of content ---' },
-        ],
-        shouldProceed: true,
-      });
+      const resultJson = JSON.parse(result.processedQuery[3].text);
+      expect(resultJson.content).toEqual('# Project README');
+      expect(resultJson.file_path).toEqual(validFile);
+
       expect(mockOnDebugMessage).toHaveBeenCalledWith(
         `Path ${gitIgnoredFile} is git-ignored and will be skipped.`,
       );
@@ -636,16 +586,9 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `@${validFile}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${validFile}:\n` },
-        { text: 'console.log("Hello world");' },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual('console.log("Hello world");');
+    expect(resultJson.file_path).toEqual(validFile);
   });
 
   it('should handle mixed gemini-ignored and valid files', async () => {
@@ -672,16 +615,10 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    expect(result).toEqual({
-      processedQuery: [
-        { text: `@${validFile} @${geminiIgnoredFile}` },
-        { text: '\n--- Content from referenced files ---' },
-        { text: `\nContent from @${validFile}:\n` },
-        { text: '// Main application entry' },
-        { text: '\n--- End of content ---' },
-      ],
-      shouldProceed: true,
-    });
+    const resultJson = JSON.parse(result.processedQuery[3].text);
+    expect(resultJson.content).toEqual('// Main application entry');
+    expect(resultJson.file_path).toEqual(validFile);
+
     expect(mockOnDebugMessage).toHaveBeenCalledWith(
       `Path ${geminiIgnoredFile} is gemini-ignored and will be skipped.`,
     );

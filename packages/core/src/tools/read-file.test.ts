@@ -159,7 +159,6 @@ describe('ReadFileTool', () => {
       expect(mockedCreateVersionedFileObject).toHaveBeenCalledWith(
         filePath,
         mockSessionStateService,
-        fileContent,
       );
 
       expect(result).toEqual({

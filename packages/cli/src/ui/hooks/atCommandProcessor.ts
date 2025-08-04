@@ -417,30 +417,30 @@ export async function handleAtCommand({
       confirmationDetails: undefined,
     };
 
-    if (Array.isArray(result.llmContent)) {
-      const fileContentRegex = /^--- (.*?) ---\n\n([\s\S]*?)\n\n$/;
-      processedQueryParts.push({
-        text: '\n--- Content from referenced files ---',
-      });
-      for (const part of result.llmContent) {
-        if (typeof part === 'string') {
-          const match = fileContentRegex.exec(part);
-          if (match) {
-            const filePathSpecInContent = match[1]; // This is a resolved pathSpec
-            const fileActualContent = match[2].trim();
+    if (result.llmContent && typeof result.llmContent === 'string') {
+      try {
+        const versionedFiles = JSON.parse(result.llmContent);
+        if (Array.isArray(versionedFiles) && versionedFiles.length > 0) {
+          processedQueryParts.push({
+            text: '\n--- Content from referenced files ---',
+          });
+          for (const file of versionedFiles) {
             processedQueryParts.push({
-              text: `\nContent from @${filePathSpecInContent}:\n`,
+              text: `\nContent from @${file.file_path}:\n`,
             });
-            processedQueryParts.push({ text: fileActualContent });
-          } else {
-            processedQueryParts.push({ text: part });
+            // Pass the whole versioned object to the model
+            processedQueryParts.push({ text: JSON.stringify(file, null, 2) });
           }
-        } else {
-          // part is a Part object.
-          processedQueryParts.push(part);
+          processedQueryParts.push({ text: '\n--- End of content ---' });
         }
+      } catch (e) {
+        onDebugMessage(
+          `Error parsing read_many_files output: ${getErrorMessage(e)}`,
+        );
       }
-      processedQueryParts.push({ text: '\n--- End of content ---' });
+    } else if (Array.isArray(result.llmContent)) {
+      // Legacy handling for non-text files, can be removed when all content is versioned
+      processedQueryParts.push(...result.llmContent);
     } else {
       onDebugMessage(
         'read_many_files tool returned no content or empty content.',

@@ -555,15 +555,20 @@ describe('fileUtils', () => {
 
 describe('createVersionedFileObject', () => {
   let sessionStateService: SessionStateService;
+  let tempRootDir: string;
 
   beforeEach(() => {
     sessionStateService = new SessionStateService();
+    tempRootDir = actualNodeFs.mkdtempSync(
+      path.join(os.tmpdir(), 'fileUtils-test-'),
+    );
     vi.spyOn(sessionStateService, 'getNextVersion');
   });
 
   it('should return a versioned file object with correct content, hash, and version', async () => {
-    const filePath = '/test/file.txt';
+    const filePath = path.join(tempRootDir, 'file.txt');
     const content = 'hello world';
+    actualNodeFs.writeFileSync(filePath, content);
     const expectedHash =
       'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9';
     const expectedVersion = 1;
@@ -571,7 +576,6 @@ describe('createVersionedFileObject', () => {
     const result = await createVersionedFileObject(
       filePath,
       sessionStateService,
-      content,
     );
 
     expect(sessionStateService.getNextVersion).toHaveBeenCalledTimes(1);
@@ -584,8 +588,9 @@ describe('createVersionedFileObject', () => {
   });
 
   it('should correctly calculate hash for different content', async () => {
-    const filePath = '/test/another.txt';
+    const filePath = path.join(tempRootDir, 'another.txt');
     const content = 'some other content';
+    actualNodeFs.writeFileSync(filePath, content);
     const expectedHash =
       'f73f16ede021d01efecf627b5e658be52293f167cfe06c6b8d0e591cb25b68c9';
     const expectedVersion = 1;
@@ -593,7 +598,6 @@ describe('createVersionedFileObject', () => {
     const result = await createVersionedFileObject(
       filePath,
       sessionStateService,
-      content,
     );
 
     expect(result.sha256).toBe(expectedHash);
