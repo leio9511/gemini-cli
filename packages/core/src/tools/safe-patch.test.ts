@@ -295,4 +295,52 @@ describe('SafePatchTool', () => {
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(true);
   });
+
+  describe('shouldConfirmExecute', () => {
+    it('should return false if the hash check fails', async () => {
+      const filePath = `${tempRootDir}/test.txt`;
+      const originalContent = 'line 1\n';
+      const baseHash = 'correct-hash';
+      const wrongHash = 'wrong-hash';
+
+      mockedFs.readFile.mockResolvedValue(originalContent);
+      vi.mocked(mockedCrypto.createHash('sha256').digest).mockReturnValueOnce(
+        baseHash,
+      );
+
+      const params: SafePatchToolParams = {
+        file_path: filePath,
+        unified_diff: 'any diff',
+        base_content_sha256: wrongHash,
+      };
+
+      const confirmation = await tool.shouldConfirmExecute(params);
+      expect(confirmation).toBe(false);
+    });
+
+    it('should return confirmation details if the hash check passes', async () => {
+      const filePath = `${tempRootDir}/test.txt`;
+      const originalContent = 'line 1\n';
+      const unifiedDiff =
+        '--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,1 @@\n-line 1\n+line one\n';
+      const baseHash = 'original-hash';
+
+      setupMocks({ filePath, originalContent, baseHash });
+
+      const params: SafePatchToolParams = {
+        file_path: filePath,
+        unified_diff: unifiedDiff,
+        base_content_sha256: baseHash,
+      };
+
+      const confirmation = (await tool.shouldConfirmExecute(
+        params,
+        abortSignal,
+      )) as import('./tools.js').ToolEditConfirmationDetails;
+
+      expect(confirmation.type).toBe('edit');
+      expect(confirmation.fileName).toBe(filePath);
+      expect(confirmation.fileDiff).toBe(unifiedDiff);
+    });
+  });
 });

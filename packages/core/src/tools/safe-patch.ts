@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BaseTool, ToolResult, Icon } from './tools.js';
+import {
+  BaseTool,
+  ToolResult,
+  Icon,
+  ToolCallConfirmationDetails,
+} from './tools.js';
 import { Config } from '../config/config.js';
 import { SessionStateService } from '../services/session-state-service.js';
 import * as fs from 'fs/promises';
@@ -192,6 +197,37 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
         2,
       ),
       returnDisplay: 'Patch Applied',
+    };
+  }
+
+  async shouldConfirmExecute(
+    params: SafePatchToolParams,
+    _abortSignal: AbortSignal,
+  ): Promise<false | ToolCallConfirmationDetails> {
+    const { file_path, unified_diff, base_content_sha256 } = params;
+    const { content: originalContent, errorResult: verificationError } =
+      await this._verifyFileState(file_path, base_content_sha256);
+
+    if (verificationError) {
+      return false;
+    }
+
+    const newContent = diff.applyPatch(originalContent, unified_diff, {
+      fuzzFactor: 0,
+    });
+
+    if (newContent === false) {
+      return false;
+    }
+
+    return {
+      type: 'edit',
+      title: 'Confirm Edit',
+      fileName: file_path,
+      fileDiff: unified_diff,
+      originalContent,
+      newContent,
+      onConfirm: async () => {},
     };
   }
 }
