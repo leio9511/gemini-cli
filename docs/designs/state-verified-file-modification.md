@@ -294,7 +294,7 @@ The `gemini-cli` model does not use a single, global "system prompt." Instead, e
   >
   > **Usage Protocol:**
   >
-  > 1.  To use this tool, you must operate on the latest version of the file available in your context. Identify this by finding the file content with the **highest version number**.
+  > 1.  To use this tool, you must operate on the latest version of the file available in your context. Identify this by finding the file content with the **highest `version` number**.
   > 2.  If no versioned content is available, you **MUST** call `read_file` or `read_many_files` first to get it.
   > 3.  When generating the `unified_diff`, you **MUST** include at least 10 lines of unchanged context around each change hunk (equivalent to `diff -U 10`) to ensure the patch can be applied reliably.
   > 4.  You **MUST** provide the `sha256` hash that was returned with that version as the `base_content_sha256` parameter. This hash acts as a lock; the operation will fail if the file has been modified since you read it."
@@ -533,13 +533,13 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 ---
 
-#### **Phase 4: Finalizing the Toolchain (`write_file` and Documentation)**
+#### **Phase 4: Finalizing the Toolchain (`write_file` and Documentation)** [DONE]
 
 **Goal:** Upgrade the remaining file-writing tool and update all LLM guidance.
 
-**Tasks (in TDD order):**
+**Tasks (in TDD order):** [DONE]
 
-1.  **Task: Update `WriteFileTool` Tests**
+1.  **Task: Update `WriteFileTool` Tests** [DONE]
     - In `packages/core/src/tools/write-file.test.ts`, rewrite the tests to cover the new state-aware logic comprehensively.
     - **Test Create:** Verify the tool correctly creates a new file when the path does not exist and no `base_content_sha256` is provided. Assert that the returned `latest_file_state` is correct.
     - **Test Safe Overwrite:** Verify the tool correctly overwrites an existing file when the correct `base_content_sha256` is provided. Assert the file content is updated and the returned `latest_file_state` is correct.
@@ -551,7 +551,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts
       ```
 
-2.  **Task: Update `WriteFileTool` Implementation**
+2.  **Task: Update `WriteFileTool` Implementation** [DONE]
     - Modify `packages/core/src/tools/write-file.ts`.
     - Update the constructor to accept the `SessionStateService`.
     - Implement the full state-aware logic in the `execute` method:
@@ -561,22 +561,22 @@ This plan breaks down the implementation into distinct phases, each ending with 
       4. If checks pass (or if it's a new file), write the content to disk.
       5. In every exit path (success or failure), construct and return the full, consistent return object, including `success`, `message`, and `latest_file_state`. Use a helper to create the `latest_file_state` to ensure consistency.
 
-**Check Point 4.1: `WriteFileTool` is State-Aware**
+**Check Point 4.1: `WriteFileTool` is State-Aware** [DONE]
 
 - **State:** Green.
 - **Verification:** All tests for `WriteFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
-- **Action:** Code is ready for review. Must run `git commit` to commit change.
+- **Action:** Code is ready for review. Must run `git commit` to commit change. (Completed in commit ff1b536e)
 
-3.  **Task: Update LLM Guidance**
+3.  **Task: Update LLM Guidance** [DONE]
     - Update the `description` fields for `read_file`, `read_many_files`, `safe_patch`, and `write_file` as detailed in the "LLM Guidance and Tool Discovery" section.
 
-**Check Point 4.2: LLM Guidance is Updated**
+**Check Point 4.2: LLM Guidance is Updated** [DONE]
 
 - **State:** Green.
 - **Verification:** The `description` fields in the tool definitions have been updated. This can be verified by running the CLI and inspecting the output of the `/tools` command.
-- **Action:** Documentation change is ready for review. Must run `git commit` to commit change.
+- **Action:** Documentation change is ready for review. Must run `git commit` to commit change. (Completed in commit ff1b536e)
 
-**Milestone 4: Fully State-Aware I/O Toolchain**
+**Milestone 4: Fully State-Aware I/O Toolchain** [DONE]
 
 - **Verification:** The entire feature set is now complete.
   1.  Perform full end-to-end manual testing of all read and write/patch flows.
