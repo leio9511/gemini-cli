@@ -477,7 +477,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 ---
 
-#### **Phase 3: State-Aware Modification (`safe_patch`)**
+#### **Phase 3: State-Aware Modification (`safe_patch`)** [DONE]
 
 **Goal:** Implement the new, safe file modification tool and integrate it into the CLI.
 
@@ -501,26 +501,26 @@ This plan breaks down the implementation into distinct phases, each ending with 
 - **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit adfba48b)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-3.  **Task: Implement UI Confirmation**
+3.  **Task: Implement UI Confirmation** [DONE]
     - Implement the `shouldConfirmExecute` method within `SafePatchTool` to handle the interactive diff confirmation.
 
-**Check Point 3.2: UI Confirmation is Integrated**
+**Check Point 3.2: UI Confirmation is Integrated** [DONE]
 
 - **State:** Green.
 - **Verification:** The `shouldConfirmExecute` method is implemented and covered by tests. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-4.  **Task: Register `SafePatchTool`**
+4.  **Task: Register `SafePatchTool`** [DONE]
     - In `packages/core/src/config/config.ts`, register the new `SafePatchTool` and pass it the `SessionStateService`.
     - Remove the registration for the old `EditTool`.
 
-**Check Point 3.3: `SafePatchTool` is Registered**
+**Check Point 3.3: `SafePatchTool` is Registered** [DONE]
 
 - **State:** Green.
 - **Verification:** The tool is correctly registered in the `Config` and the old tool is removed. This can be verified by running the CLI and checking the `/tools` command output. The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-**Milestone 3: Safe, Atomic Patching is Functional**
+**Milestone 3: Safe, Atomic Patching is Functional** [DONE]
 
 - **Verification:** The primary modification workflow is now testable end-to-end.
   1.  Run `gemini-cli`.
@@ -529,7 +529,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
   4.  **Confirm** that the interactive diff confirmation for `safe_patch` appears.
   5.  Approve the change and verify the file is correctly modified on disk.
   6.  Test the state mismatch case: read a file with `@`, modify it manually in a separate editor, then ask the LLM to patch it. **Confirm** the tool call fails with the "State Mismatch" error in the CLI.
-- **Action:** Phase 3 is ready for a final review. Must run `git commit` to commit change.
+- **Action:** Phase 3 is ready for a final review. Must run `git commit` to commit change. (Completed in commit 57e5750b)
 
 ---
 
