@@ -47,7 +47,7 @@ export class ReadFileTool extends BaseTool<ReadFileToolParams, ToolResult> {
     super(
       ReadFileTool.Name,
       'ReadFile',
-      'Reads and returns the content of a specified file from the local filesystem. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), and PDF files. For text files, it can read specific line ranges.',
+      'Reads the content of a file and returns it along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files with the `safe_patch` tool. It also handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), and PDF files. For text files, it can read specific line ranges.',
       Icon.FileSearch,
       {
         properties: {
