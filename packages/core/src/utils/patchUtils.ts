@@ -148,7 +148,11 @@ function formatDiff(parsedDiff: diff.ParsedDiff): string {
 export function correctDiff(baseContent: string, unifiedDiff: string): string {
   const parsedDiffs = diff.parsePatch(unifiedDiff);
   if (!parsedDiffs || parsedDiffs.length === 0) {
-    throw new InvalidDiffError('Invalid Diff: Could not parse patch.');
+    throw new InvalidDiffError(
+      'Invalid Diff Syntax: The `unified_diff` is malformed and could not be parsed. ' +
+        "This is often caused by incorrect line prefixes (must be ' ', '+', or '-') " +
+        'or multi-line content within a single diff line. Please ensure the diff follows the standard unified diff format.',
+    );
   }
 
   const baseLines = baseContent.split('\n');
@@ -193,8 +197,16 @@ export function correctDiff(baseContent: string, unifiedDiff: string): string {
       if (matchStartIdx !== -1) {
         correctedHunks.push({ ...hunk, oldStart: matchStartIdx + 1 });
       } else {
+        const firstNonMatchingLine = hunkLinesForOriginal[0];
         throw new InvalidDiffError(
-          `Invalid Diff: The provided diff content does not match the file's content. The context or lines to be removed may be incorrect.`,
+          'Hunk Content Mismatch: Could not find the context for a hunk in the source file. ' +
+            `The mismatch occurred while searching for this line: 
+` +
+            firstNonMatchingLine +
+            `
+ from the diff. ` +
+            "Please verify that the context lines (starting with ' ') and removal lines (starting with '-') " +
+            'in the diff *exactly* match the source file, including all indentation and whitespace.',
         );
       }
     }

@@ -234,7 +234,7 @@ describe('SafePatchTool', () => {
     expect(result.returnDisplay).toBe('Invalid Diff');
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(false);
-    expect(resultJson.message).toContain('Invalid Diff');
+    expect(resultJson.message).toContain('Hunk Content Mismatch');
   });
 
   it('should fail if the corrected patch fails to apply', async () => {

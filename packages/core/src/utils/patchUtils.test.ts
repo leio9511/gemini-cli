@@ -70,7 +70,7 @@ line 10`;
 -not found line 2
 +not found line two`;
     expect(() => correctDiff(baseContent, patch)).toThrow(
-      `Invalid Diff: The provided diff content does not match the file's content. The context or lines to be removed may be incorrect.`,
+      'Hunk Content Mismatch',
     );
   });
 
