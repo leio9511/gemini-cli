@@ -358,7 +358,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 ---
 
-#### **Phase 1: Core Services & Versioned Reading (The Foundation)**
+#### **Phase 1: Core Services & Versioned Reading (The Foundation)** [DONE]
 
 **Goal:** Establish the non-user-facing backbone of the system by creating the versioning service and the reusable logic for creating versioned file objects.
 
@@ -421,14 +421,14 @@ This plan breaks down the implementation into distinct phases, each ending with 
 - **Verification:** All tests for `ReadFileTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/read-file.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit fc5de2e9)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation**
+7.  **Task: Refactor `ReadManyFilesTool` Tests & Implementation** [DONE]
     - Follow the same TDD pattern as for `ReadFileTool`: first update the tests in `packages/core/src/tools/read-many-files.test.ts` to mock the utility, then refactor the implementation in `packages/core/src/tools/read-many-files.ts` to use it in a loop.
     - **How to run tests:**
       ```bash
       npm test -w @google/gemini-cli-core -- src/tools/read-many-files.test.ts
       ```
 
-**Milestone 1: Verifiable Versioned Reads**
+**Milestone 1: Verifiable Versioned Reads** [DONE]
 
 - **State:** Green.
 - **Verification:** At this stage, the core logic is complete. All unit tests are passing and the full preflight check (`npm run preflight`) is successful. After preflight passes, run "git status" to review changes made so far. Correctness can be verified by writing a small, temporary integration test script. This script should:
@@ -436,17 +436,17 @@ This plan breaks down the implementation into distinct phases, each ending with 
   2.  Call `execute` on both tools for known files.
   3.  Assert that the returned `llmContent` is the new structured JSON (or an array of them).
   4.  Assert that the `version` number increments sequentially across multiple tool calls.
-- **Action:** Phase 1 is ready for a final review. Must run `git commit` to commit change.
+- **Action:** Phase 1 is ready for a final review. Must run `git commit` to commit change. (Completed in commit d5dae2fe)
 
 ---
 
-#### **Phase 2: Frontend Integration (`@` Operator)**
+#### **Phase 2: Frontend Integration (`@` Operator)** [DONE]
 
 **Goal:** Connect the versioned reading foundation to the user-facing `@` operator.
 
 **Tasks (in TDD order):**
 
-1.  **Task: Update `@` Processor Tests**
+1.  **Task: Update `@` Processor Tests** [DONE]
     - Modify `packages/cli/src/ui/hooks/atCommandProcessor.test.ts`.
     - In the tests for `handleAtCommand`, mock the `read_many_files` tool.
     - Change the mock's return value to be the new array of structured JSON objects.
@@ -456,24 +456,24 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli -- src/ui/hooks/atCommandProcessor.test.ts
       ```
 
-2.  **Task: Update `@` Processor Implementation**
+2.  **Task: Update `@` Processor Implementation** [DONE]
     - Modify the `handleAtCommand` function in `packages/cli/src/ui/hooks/atCommandProcessor.ts`.
     - Update the logic that processes the result from `read_many_files` to handle the array of JSON objects instead of an array of strings. Ensure it formats this structured data correctly into the final prompt.
 
-**Check Point 2.1: `@` Processor is Version-Aware**
+**Check Point 2.1: `@` Processor is Version-Aware** [DONE]
 
 - **State:** Green.
 - **Verification:** All tests for the `@` processor are passing (`npm test -w @google/gemini-cli -- src/ui/hooks/atCommandProcessor.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
-**Milestone 2: `@` Operator is State-Aware**
+**Milestone 2: `@` Operator is State-Aware** [DONE]
 
 - **Verification:** This change is now user-visible.
   1.  Run the `gemini-cli` executable.
   2.  Execute a prompt containing an `@` command (e.g., `gemini "Summarize this file: @/path/to/file.txt"`).
   3.  Using the debug logs (`--debug` flag), inspect the final prompt being sent to the model.
   4.  **Confirm** that the file content has been injected as a structured JSON block containing `file_path`, `version`, `sha256`, and `content`.
-- **Action:** Phase 2 is ready for a final review. Must run `git commit` to commit change.
+- **Action:** Phase 2 is ready for a final review. Must run `git commit` to commit change. (Completed in commit d5dae2fe)
 
 ---
 
