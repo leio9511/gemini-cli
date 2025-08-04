@@ -37,14 +37,12 @@ export interface ReadManyFilesParams {
   /**
    * Optional. Glob patterns for files to include.
    * These are effectively combined with the `paths`.
-   * Example: ["*.ts", "src/** /*.md"]
    */
   include?: string[];
 
   /**
    * Optional. Glob patterns for files/directories to exclude.
    * Applied as ignore patterns.
-   * Example: ["*.log", "dist/**"]
    */
   exclude?: string[];
 
@@ -147,7 +145,7 @@ export class ReadManyFilesTool extends BaseTool<
             minLength: '1',
           },
           description:
-            'Optional. Additional glob patterns to include. These are merged with `paths`. Example: ["*.test.ts"] to specifically add test files if they were broadly excluded.',
+            'Optional. Additional glob patterns to include. These are merged with `paths`.',
           default: [],
         },
         exclude: {
@@ -157,7 +155,7 @@ export class ReadManyFilesTool extends BaseTool<
             minLength: '1',
           },
           description:
-            'Optional. Glob patterns for files/directories to exclude. Added to default excludes if useDefaultExcludes is true. Example: ["**/*.log", "temp/"]',
+            'Optional. Glob patterns for files/directories to exclude. Added to default excludes if useDefaultExcludes is true.',
           default: [],
         },
         recursive: {
@@ -196,7 +194,7 @@ export class ReadManyFilesTool extends BaseTool<
     super(
       ReadManyFilesTool.Name,
       'ReadManyFiles',
-      `Reads the content of multiple files and returns an array of objects, where each object contains the file content along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files.`,
+      'Reads the content of multiple files and returns an array of objects, where each object contains the file content along with a session-unique version number and a SHA-256 hash. This versioned data is required for safely modifying files.',
       Icon.FileSearch,
       parameterSchema,
     );

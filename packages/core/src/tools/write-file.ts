@@ -4,407 +4,131 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'fs';
-import path from 'path';
-import * as Diff from 'diff';
-import { Config, ApprovalMode } from '../config/config.js';
-import {
-  BaseTool,
-  ToolResult,
-  FileDiff,
-  ToolEditConfirmationDetails,
-  ToolConfirmationOutcome,
-  ToolCallConfirmationDetails,
-  Icon,
-} from './tools.js';
-import { Type } from '@google/genai';
-import { SchemaValidator } from '../utils/schemaValidator.js';
-import { makeRelative, shortenPath } from '../utils/paths.js';
-import { getErrorMessage, isNodeError } from '../utils/errors.js';
-import {
-  ensureCorrectEdit,
-  ensureCorrectFileContent,
-} from '../utils/editCorrector.js';
-import { DEFAULT_DIFF_OPTIONS } from './diffOptions.js';
-import { ModifiableTool, ModifyContext } from './modifiable-tool.js';
-import { getSpecificMimeType } from '../utils/fileUtils.js';
-import {
-  recordFileOperationMetric,
-  FileOperation,
-} from '../telemetry/metrics.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { Config } from '../config/config.js';
+import { BaseTool, ToolResult, Icon } from './tools.js';
+import { Schema, Type } from '@google/genai';
+import { SessionStateService } from '../services/session-state-service.js';
+import { createVersionedFileObjectFromContent } from '../utils/fileUtils.js';
+import { getErrorMessage } from '../utils/errors.js';
 
-/**
- * Parameters for the WriteFile tool
- */
 export interface WriteFileToolParams {
-  /**
-   * The absolute path to the file to write to
-   */
   file_path: string;
-
-  /**
-   * The content to write to the file
-   */
   content: string;
-
-  /**
-   * Whether the proposed content was modified by the user.
-   */
-  modified_by_user?: boolean;
+  base_content_sha256?: string;
 }
 
-interface GetCorrectedFileContentResult {
-  originalContent: string;
-  correctedContent: string;
-  fileExists: boolean;
-  error?: { message: string; code?: string };
-}
-
-/**
- * Implementation of the WriteFile tool logic
- */
-export class WriteFileTool
-  extends BaseTool<WriteFileToolParams, ToolResult>
-  implements ModifiableTool<WriteFileToolParams>
-{
+export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
   static readonly Name: string = 'write_file';
+  private readonly sessionStateService: SessionStateService;
 
   constructor(private readonly config: Config) {
     super(
       WriteFileTool.Name,
-      'WriteFile',
-      `Writes content to a specified file in the local filesystem.
+      'Write File',
+      `Writes content to a file. This tool is for creating new files or completely overwriting existing ones.
 
-      The user has the ability to modify \`content\`. If modified, this will be stated in the response.`,
+**Usage Protocol:**
+
+1.  **To create a new file:** Call the tool with the desired file_path and content. Do not provide a base_content_sha256.
+2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from read_file or a previous tool call). You **MUST** provide the sha256 from that version as the base_content_sha256. This prevents accidental overwrites of files that have changed.
+3.  If you attempt to write to an existing file path without providing a base_content_sha256, the operation will fail as a safety measure.`,
       Icon.Pencil,
       {
         properties: {
-          file_path: {
-            description:
-              "The absolute path to the file to write to (e.g., '/home/user/project/file.txt'). Relative paths are not supported.",
-            type: Type.STRING,
-          },
-          content: {
-            description: 'The content to write to the file.',
-            type: Type.STRING,
-          },
+          file_path: { type: Type.STRING },
+          content: { type: Type.STRING },
+          base_content_sha256: { type: Type.STRING },
         },
         required: ['file_path', 'content'],
         type: Type.OBJECT,
-      },
+      } as Schema,
     );
+    this.sessionStateService = config.getSessionStateService();
   }
 
   validateToolParams(params: WriteFileToolParams): string | null {
-    const errors = SchemaValidator.validate(this.schema.parameters, params);
-    if (errors) {
-      return errors;
-    }
-
     const filePath = params.file_path;
     if (!path.isAbsolute(filePath)) {
       return `File path must be absolute: ${filePath}`;
     }
-
-    const workspaceContext = this.config.getWorkspaceContext();
-    if (!workspaceContext.isPathWithinWorkspace(filePath)) {
-      const directories = workspaceContext.getDirectories();
-      return `File path must be within one of the workspace directories: ${directories.join(', ')}`;
-    }
-
-    try {
-      // This check should be performed only if the path exists.
-      // If it doesn't exist, it's a new file, which is valid for writing.
-      if (fs.existsSync(filePath)) {
-        const stats = fs.lstatSync(filePath);
-        if (stats.isDirectory()) {
-          return `Path is a directory, not a file: ${filePath}`;
-        }
-      }
-    } catch (statError: unknown) {
-      // If fs.existsSync is true but lstatSync fails (e.g., permissions, race condition where file is deleted)
-      // this indicates an issue with accessing the path that should be reported.
-      return `Error accessing path properties for validation: ${filePath}. Reason: ${statError instanceof Error ? statError.message : String(statError)}`;
-    }
-
     return null;
   }
 
   getDescription(params: WriteFileToolParams): string {
-    if (!params.file_path || !params.content) {
-      return `Model did not provide valid parameters for write file tool`;
-    }
-    const relativePath = makeRelative(
-      params.file_path,
-      this.config.getTargetDir(),
-    );
-    return `Writing to ${shortenPath(relativePath)}`;
-  }
-
-  /**
-   * Handles the confirmation prompt for the WriteFile tool.
-   */
-  async shouldConfirmExecute(
-    params: WriteFileToolParams,
-    abortSignal: AbortSignal,
-  ): Promise<ToolCallConfirmationDetails | false> {
-    if (this.config.getApprovalMode() === ApprovalMode.AUTO_EDIT) {
-      return false;
-    }
-
-    const validationError = this.validateToolParams(params);
-    if (validationError) {
-      return false;
-    }
-
-    const correctedContentResult = await this._getCorrectedFileContent(
-      params.file_path,
-      params.content,
-      abortSignal,
-    );
-
-    if (correctedContentResult.error) {
-      // If file exists but couldn't be read, we can't show a diff for confirmation.
-      return false;
-    }
-
-    const { originalContent, correctedContent } = correctedContentResult;
-    const relativePath = makeRelative(
-      params.file_path,
-      this.config.getTargetDir(),
-    );
-    const fileName = path.basename(params.file_path);
-
-    const fileDiff = Diff.createPatch(
-      fileName,
-      originalContent, // Original content (empty if new file or unreadable)
-      correctedContent, // Content after potential correction
-      'Current',
-      'Proposed',
-      DEFAULT_DIFF_OPTIONS,
-    );
-
-    const confirmationDetails: ToolEditConfirmationDetails = {
-      type: 'edit',
-      title: `Confirm Write: ${shortenPath(relativePath)}`,
-      fileName,
-      fileDiff,
-      originalContent,
-      newContent: correctedContent,
-      onConfirm: async (outcome: ToolConfirmationOutcome) => {
-        if (outcome === ToolConfirmationOutcome.ProceedAlways) {
-          this.config.setApprovalMode(ApprovalMode.AUTO_EDIT);
-        }
-      },
-    };
-    return confirmationDetails;
+    return `Writing to ${params.file_path}`;
   }
 
   async execute(
     params: WriteFileToolParams,
-    abortSignal: AbortSignal,
+    _signal: AbortSignal,
   ): Promise<ToolResult> {
-    const validationError = this.validateToolParams(params);
-    if (validationError) {
-      return {
-        llmContent: `Error: Invalid parameters provided. Reason: ${validationError}`,
-        returnDisplay: `Error: ${validationError}`,
-      };
-    }
-
-    const correctedContentResult = await this._getCorrectedFileContent(
-      params.file_path,
-      params.content,
-      abortSignal,
-    );
-
-    if (correctedContentResult.error) {
-      const errDetails = correctedContentResult.error;
-      const errorMsg = `Error checking existing file: ${errDetails.message}`;
-      return {
-        llmContent: `Error checking existing file ${params.file_path}: ${errDetails.message}`,
-        returnDisplay: errorMsg,
-      };
-    }
-
-    const {
-      originalContent,
-      correctedContent: fileContent,
-      fileExists,
-    } = correctedContentResult;
-    // fileExists is true if the file existed (and was readable or unreadable but caught by readError).
-    // fileExists is false if the file did not exist (ENOENT).
-    const isNewFile =
-      !fileExists ||
-      (correctedContentResult.error !== undefined &&
-        !correctedContentResult.fileExists);
-
-    try {
-      const dirName = path.dirname(params.file_path);
-      if (!fs.existsSync(dirName)) {
-        fs.mkdirSync(dirName, { recursive: true });
-      }
-
-      fs.writeFileSync(params.file_path, fileContent, 'utf8');
-
-      // Generate diff for display result
-      const fileName = path.basename(params.file_path);
-      // If there was a readError, originalContent in correctedContentResult is '',
-      // but for the diff, we want to show the original content as it was before the write if possible.
-      // However, if it was unreadable, currentContentForDiff will be empty.
-      const currentContentForDiff = correctedContentResult.error
-        ? '' // Or some indicator of unreadable content
-        : originalContent;
-
-      const fileDiff = Diff.createPatch(
-        fileName,
-        currentContentForDiff,
-        fileContent,
-        'Original',
-        'Written',
-        DEFAULT_DIFF_OPTIONS,
-      );
-
-      const llmSuccessMessageParts = [
-        isNewFile
-          ? `Successfully created and wrote to new file: ${params.file_path}.`
-          : `Successfully overwrote file: ${params.file_path}.`,
-      ];
-      if (params.modified_by_user) {
-        llmSuccessMessageParts.push(
-          `User modified the \`content\` to be: ${params.content}`,
-        );
-      }
-
-      const displayResult: FileDiff = {
-        fileDiff,
-        fileName,
-        originalContent: correctedContentResult.originalContent,
-        newContent: correctedContentResult.correctedContent,
-      };
-
-      const lines = fileContent.split('\n').length;
-      const mimetype = getSpecificMimeType(params.file_path);
-      const extension = path.extname(params.file_path); // Get extension
-      if (isNewFile) {
-        recordFileOperationMetric(
-          this.config,
-          FileOperation.CREATE,
-          lines,
-          mimetype,
-          extension,
-        );
-      } else {
-        recordFileOperationMetric(
-          this.config,
-          FileOperation.UPDATE,
-          lines,
-          mimetype,
-          extension,
-        );
-      }
-
-      return {
-        llmContent: llmSuccessMessageParts.join(' '),
-        returnDisplay: displayResult,
-      };
-    } catch (error) {
-      const errorMsg = `Error writing to file: ${error instanceof Error ? error.message : String(error)}`;
-      return {
-        llmContent: `Error writing to file ${params.file_path}: ${errorMsg}`,
-        returnDisplay: `Error: ${errorMsg}`,
-      };
-    }
-  }
-
-  private async _getCorrectedFileContent(
-    filePath: string,
-    proposedContent: string,
-    abortSignal: AbortSignal,
-  ): Promise<GetCorrectedFileContentResult> {
-    let originalContent = '';
+    const { file_path, content, base_content_sha256 } = params;
     let fileExists = false;
-    let correctedContent = proposedContent;
-
     try {
-      originalContent = fs.readFileSync(filePath, 'utf8');
-      fileExists = true; // File exists and was read
-    } catch (err) {
-      if (isNodeError(err) && err.code === 'ENOENT') {
-        fileExists = false;
-        originalContent = '';
-      } else {
-        // File exists but could not be read (permissions, etc.)
-        fileExists = true; // Mark as existing but problematic
-        originalContent = ''; // Can't use its content
-        const error = {
-          message: getErrorMessage(err),
-          code: isNodeError(err) ? err.code : undefined,
-        };
-        // Return early as we can't proceed with content correction meaningfully
-        return { originalContent, correctedContent, fileExists, error };
-      }
+      await fs.access(file_path);
+      fileExists = true;
+    } catch (_e) {
+      // file doesn't exist
     }
-
-    // If readError is set, we have returned.
-    // So, file was either read successfully (fileExists=true, originalContent set)
-    // or it was ENOENT (fileExists=false, originalContent='').
 
     if (fileExists) {
-      // This implies originalContent is available
-      const { params: correctedParams } = await ensureCorrectEdit(
-        filePath,
-        originalContent,
-        {
-          old_string: originalContent, // Treat entire current content as old_string
-          new_string: proposedContent,
-          file_path: filePath,
-        },
-        this.config.getGeminiClient(),
-        abortSignal,
-      );
-      correctedContent = correctedParams.new_string;
-    } else {
-      // This implies new file (ENOENT)
-      correctedContent = await ensureCorrectFileContent(
-        proposedContent,
-        this.config.getGeminiClient(),
-        abortSignal,
-      );
+      if (!base_content_sha256) {
+        return {
+          llmContent: JSON.stringify({
+            success: false,
+            message: 'File exists, but no hash was provided.',
+          }),
+          returnDisplay: 'Error: File exists, but no hash was provided.',
+        };
+      }
+      const onDiskContent = await fs.readFile(file_path, 'utf-8');
+      const actualHash = crypto
+        .createHash('sha256')
+        .update(onDiskContent)
+        .digest('hex');
+      if (actualHash !== base_content_sha256) {
+        return {
+          llmContent: JSON.stringify({
+            success: false,
+            message: 'File content has changed since last read.',
+          }),
+          returnDisplay: 'Error: File content has changed since last read.',
+        };
+      }
     }
-    return { originalContent, correctedContent, fileExists };
-  }
 
-  getModifyContext(
-    abortSignal: AbortSignal,
-  ): ModifyContext<WriteFileToolParams> {
-    return {
-      getFilePath: (params: WriteFileToolParams) => params.file_path,
-      getCurrentContent: async (params: WriteFileToolParams) => {
-        const correctedContentResult = await this._getCorrectedFileContent(
-          params.file_path,
-          params.content,
-          abortSignal,
-        );
-        return correctedContentResult.originalContent;
-      },
-      getProposedContent: async (params: WriteFileToolParams) => {
-        const correctedContentResult = await this._getCorrectedFileContent(
-          params.file_path,
-          params.content,
-          abortSignal,
-        );
-        return correctedContentResult.correctedContent;
-      },
-      createUpdatedParams: (
-        _oldContent: string,
-        modifiedProposedContent: string,
-        originalParams: WriteFileToolParams,
-      ) => ({
-        ...originalParams,
-        content: modifiedProposedContent,
-        modified_by_user: true,
-      }),
-    };
+    try {
+      await fs.writeFile(file_path, content);
+      const latestFileState = await createVersionedFileObjectFromContent(
+        file_path,
+        this.sessionStateService,
+        content,
+      );
+      return {
+        llmContent: JSON.stringify(
+          {
+            success: true,
+            message: fileExists
+              ? 'File overwritten successfully.'
+              : 'File created successfully.',
+            latest_file_state: latestFileState,
+          },
+          null,
+          2,
+        ),
+        returnDisplay: fileExists ? 'File Overwritten' : 'File Created',
+      };
+    } catch (e) {
+      return {
+        llmContent: JSON.stringify({
+          success: false,
+          message: getErrorMessage(e),
+        }),
+        returnDisplay: `Error: ${getErrorMessage(e)}`,
+      };
+    }
   }
 }
