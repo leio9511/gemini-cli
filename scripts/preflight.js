@@ -24,7 +24,7 @@ import chalk from 'chalk';
 const steps = [
   { name: 'clean', command: 'npm run clean' },
   { name: 'install', command: 'npm ci' },
-  { name: 'format', command: 'npm run format:check' },
+  { name: 'format', command: 'npm run format' },
   { name: 'lint', command: 'npm run lint:ci' },
   { name: 'build', command: 'npm run build' },
   { name: 'typecheck', command: 'npm run typecheck' },
