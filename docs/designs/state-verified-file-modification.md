@@ -483,7 +483,7 @@ This plan breaks down the implementation into distinct phases, each ending with 
 
 **Tasks (in TDD order):**
 
-1.  **Task: Test `SafePatchTool`**
+1.  **Task: Test `SafePatchTool`** [DONE]
     - Create `packages/core/src/tools/safe-patch.test.ts`.
     - Write comprehensive tests for all success and failure cases as detailed in the "Test Plan" section (hash mismatch, invalid diff, internal errors, etc.).
     - **How to run tests:**
@@ -491,14 +491,14 @@ This plan breaks down the implementation into distinct phases, each ending with 
       npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts
       ```
 
-2.  **Task: Implement `SafePatchTool`**
+2.  **Task: Implement `SafePatchTool`** [DONE]
     - Create `packages/core/src/tools/safe-patch.ts`.
     - Implement the `SafePatchTool` class and its `execute` method, including the state verification, "Fix the Diff", and "Apply Strict Patch" stages, to make the tests pass.
 
-**Check Point 3.1: `SafePatchTool` Logic is Complete**
+**Check Point 3.1: `SafePatchTool` Logic is Complete** [DONE]
 
 - **State:** Green.
-- **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far.
+- **Verification:** All tests for `SafePatchTool` are passing (`npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`). The full preflight check (`npm run preflight`) passes. After preflight passes, run "git status" to review changes made so far. (Completed in commit adfba48b)
 - **Action:** Code is ready for review. Must run `git commit` to commit change.
 
 3.  **Task: Implement UI Confirmation**
