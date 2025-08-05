@@ -4,53 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as diff from 'diff';
+import * as Errors from '../errors.js';
 
-// The number of lines to search above and below the diff's line number hint.
-const SEARCH_WINDOW_RADIUS = 40;
-
-export class InvalidDiffError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InvalidDiffError';
-  }
-}
-
-/**
- * Finds a match for hunkLines within targetLines, tolerating extra blank lines
- * in the target that are not present in the hunk. This is a port of the logic
- * in docs/designs/fuzzy_patch.py.
- *
- * The function works in several stages:
- * 1. It creates a `corePattern` by stripping all blank lines from the input
- *    hunk. This pattern represents the essential, non-blank lines that must
- *    be matched in order.
- * 2. It establishes a search window in the target file, starting near the
- *    line number hint from the diff.
- * 3. It iterates through the target file, attempting to match the first line
- *    of the `corePattern`.
- * 4. Once the first line matches, it continues comparing the subsequent lines
- *    of the `corePattern` with the lines in the target file.
- * 5. If a line in the target file is blank, it is skipped, making the match
- *    flexible.
- * 6. If a non-blank line in the target does not match the pattern, that
- *    match attempt fails, and the search continues from the next line.
- *
- * @param targetLines The lines of the file to be patched.
- * @param hunkLines The context/removed lines from the hunk.
- * @param searchStartIdx The index in targetLines to start searching from.
- * @returns The 0-indexed starting line of the match, or -1 if not found.
- */
+// This is a direct port of the Python script's find_flexible_match function.
 function findFlexibleMatch(
   targetLines: string[],
   hunkLines: string[],
   searchStartIdx = 0,
-): number {
-  // 1. Create a `corePattern` of only the non-blank lines from the hunk.
+): [boolean, number, number] {
   const corePattern = hunkLines
     .map((line) => line.trimEnd())
     .filter((line) => line);
-
   if (corePattern.length === 0) {
     // If hunk is only blank lines, fall back to exact match for that block.
     for (
@@ -65,18 +29,17 @@ function findFlexibleMatch(
         JSON.stringify(targetSliceStripped) ===
         JSON.stringify(hunkLines.map((line) => line.trimEnd()))
       ) {
-        return i;
+        return [true, i, i + hunkLines.length];
       }
     }
-    return -1;
+    return [false, -1, -1];
   }
 
-  // 2. Iterate through the target file to find a starting match.
   for (let i = searchStartIdx; i < targetLines.length; i++) {
     let patternPtr = 0;
     let targetPtr = i;
 
-    // 3. Find the first line of the corePattern.
+    // Try to match the first non-blank line of the pattern
     while (
       targetPtr < targetLines.length &&
       targetLines[targetPtr].trimEnd() !== corePattern[0]
@@ -85,133 +48,189 @@ function findFlexibleMatch(
     }
 
     if (targetPtr >= targetLines.length) {
-      // Could not even find the start of the pattern.
-      return -1;
+      // Could not even find the start of the pattern
+      return [false, -1, -1];
     }
 
     const matchStartIdx = targetPtr;
     patternPtr = 1;
     targetPtr++;
 
-    // 4. Match the rest of the pattern, allowing for flexible blank lines.
     while (patternPtr < corePattern.length && targetPtr < targetLines.length) {
       const targetLineStripped = targetLines[targetPtr].trimEnd();
       if (targetLineStripped === corePattern[patternPtr]) {
         patternPtr++;
       } else if (targetLineStripped !== '') {
-        // 6. Mismatch on a non-blank line, this attempt fails.
+        // Mismatch on a non-blank line, this attempt fails.
         break;
       }
-      // 5. If it's a blank line, we just skip it by advancing targetPtr.
+      // If it's a blank line, we just skip it by advancing targetPtr
       targetPtr++;
     }
 
     if (patternPtr === corePattern.length) {
-      // We successfully matched all non-blank lines in the pattern.
-      return matchStartIdx;
+      // We successfully matched all non-blank lines in the pattern
+      return [true, matchStartIdx, targetPtr];
     }
   }
 
-  return -1;
+  return [false, -1, -1];
 }
 
-function formatHunk(hunk: diff.Hunk): string {
-  const header = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
-  return [header, ...hunk.lines].join('\n');
-}
+// This is a direct port of the Python script's apply_fuzzy_patch function.
+export function applyFuzzyPatch(
+  originalContent: string,
+  unifiedDiff: string,
+): string {
+  const targetLines = originalContent.split(/\r?\n/);
 
-function formatDiff(parsedDiff: diff.ParsedDiff): string {
-  const headers = [];
-  if (parsedDiff.oldFileName) {
-    headers.push(`--- ${parsedDiff.oldFileName}`);
-  }
-  if (parsedDiff.newFileName) {
-    headers.push(`+++ ${parsedDiff.newFileName}`);
-  }
-  if (parsedDiff.oldHeader) {
-    headers.push(parsedDiff.oldHeader);
-  }
-  if (parsedDiff.newHeader) {
-    headers.push(parsedDiff.newHeader);
-  }
+  const diffLinesRaw = unifiedDiff.split(/\r?\n/);
+  const diffContentForSplit = diffLinesRaw.join('\n');
 
-  const hunksStr = parsedDiff.hunks.map(formatHunk).join('\n');
-  return [...headers, hunksStr].join('\n');
-}
+  const patchedLines = [...targetLines];
 
-/**
- * Orchestrates the correction of a unified diff.
- * It parses the diff, iterates through each file patch and each hunk,
- * calling `findFlexibleMatch` to find the correct application line number
- * before reconstructing the diff with the corrected line numbers.
- */
-export function correctDiff(baseContent: string, unifiedDiff: string): string {
-  const parsedDiffs = diff.parsePatch(unifiedDiff);
-  if (!parsedDiffs || parsedDiffs.length === 0) {
-    throw new InvalidDiffError(
-      'Invalid Diff Syntax: The `unified_diff` is malformed and could not be parsed. ' +
-        "This is often caused by incorrect line prefixes (must be ' ', '+', or '-') " +
-        'or multi-line content within a single diff line. Please ensure the diff follows the standard unified diff format.',
-    );
+  // Parse the diff into hunks.
+  const diffParts = diffContentForSplit.split(/^(?=^@@)/m);
+
+  if (
+    diffParts &&
+    diffParts[0] &&
+    !diffParts[0].startsWith('@@') &&
+    diffParts[0].trim()
+  ) {
+    diffParts.shift();
   }
 
-  const baseLines = baseContent.split('\n');
-  const finalCorrectedDiffs = [];
+  if (!diffParts || (diffParts.length === 1 && !diffParts[0].trim())) {
+    return originalContent;
+  }
 
-  for (const parsedDiff of parsedDiffs) {
-    if (
-      parsedDiff.oldFileName === '/dev/null' ||
-      parsedDiff.newFileName === '/dev/null'
-    ) {
-      finalCorrectedDiffs.push(parsedDiff);
+  let currentFileOffset = 0;
+
+  // Process hunks sequentially.
+  for (const hunkText of diffParts) {
+    const hunkTextStrippedOverall = hunkText.trim();
+    if (!hunkTextStrippedOverall || !hunkTextStrippedOverall.startsWith('@@')) {
       continue;
     }
 
-    const correctedHunks = [];
-    for (const hunk of parsedDiff.hunks) {
-      const hunkLinesForOriginal = hunk.lines
-        .filter((line) => line.startsWith(' ') || line.startsWith('-'))
-        .map((line) => line.substring(1));
+    const linesInHunkWithHeader = hunkTextStrippedOverall.split('\n');
+    const hunkHeader = linesInHunkWithHeader[0];
+    const hunkBodyLinesRaw = linesInHunkWithHeader.slice(1);
 
-      if (hunkLinesForOriginal.length === 0) {
-        correctedHunks.push(hunk);
+    const headerMatch = hunkHeader.match(
+      /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/,
+    );
+    if (!headerMatch) {
+      throw new Errors.InvalidDiffError(
+        `Error: Could not parse hunk header: ${hunkHeader}`,
+      );
+    }
+
+    const oldStartLine1idx = parseInt(headerMatch[1], 10);
+
+    const currentHunkOriginalBlockStripped: string[] = [];
+    const currentHunkNewBlockRaw: string[] = [];
+
+    for (const lineInHunkBody of hunkBodyLinesRaw) {
+      if (
+        !lineInHunkBody &&
+        hunkBodyLinesRaw.length === 1 &&
+        !lineInHunkBody.startsWith('-') &&
+        !lineInHunkBody.startsWith('+') &&
+        !lineInHunkBody.startsWith(' ')
+      ) {
+        continue;
+      }
+      if (!lineInHunkBody) {
         continue;
       }
 
-      const hintSearchStart0idx = hunk.oldStart > 0 ? hunk.oldStart - 1 : 0;
-      const windowSearchStart = Math.max(
+      const op = lineInHunkBody[0];
+      const contentRaw = lineInHunkBody.substring(1);
+      const contentStripped = contentRaw.trimEnd();
+
+      if (op === ' ') {
+        currentHunkOriginalBlockStripped.push(contentStripped);
+        currentHunkNewBlockRaw.push(contentRaw);
+      } else if (op === '-') {
+        currentHunkOriginalBlockStripped.push(contentStripped);
+      } else if (op === '+') {
+        currentHunkNewBlockRaw.push(contentRaw);
+      }
+    }
+
+    if (currentHunkOriginalBlockStripped.length === 0) {
+      if (currentHunkNewBlockRaw.length === 0) {
+        continue;
+      }
+
+      let insertionPoint0idx: number;
+      if (oldStartLine1idx === 0) {
+        insertionPoint0idx = currentFileOffset;
+      } else {
+        insertionPoint0idx = oldStartLine1idx - 1 + currentFileOffset;
+      }
+
+      insertionPoint0idx = Math.max(
         0,
-        hintSearchStart0idx - SEARCH_WINDOW_RADIUS,
+        Math.min(insertionPoint0idx, patchedLines.length),
       );
 
-      let matchStartIdx = findFlexibleMatch(
-        baseLines,
-        hunkLinesForOriginal,
+      patchedLines.splice(insertionPoint0idx, 0, ...currentHunkNewBlockRaw);
+      currentFileOffset += currentHunkNewBlockRaw.length;
+      continue;
+    }
+
+    let foundMatchInTarget = false;
+    let matchStartIdx0idx = -1;
+    let matchEndIdx0idx = -1;
+
+    const hintSearchStart0idx = oldStartLine1idx - 1 + currentFileOffset;
+    const searchWindowRadius = 40;
+
+    const windowSearchStart = Math.max(
+      0,
+      hintSearchStart0idx - searchWindowRadius,
+    );
+
+    // Find a match for the hunk in the target file.
+    [foundMatchInTarget, matchStartIdx0idx, matchEndIdx0idx] =
+      findFlexibleMatch(
+        patchedLines,
+        currentHunkOriginalBlockStripped,
         windowSearchStart,
       );
 
-      if (matchStartIdx === -1) {
-        matchStartIdx = findFlexibleMatch(baseLines, hunkLinesForOriginal, 0);
-      }
-
-      if (matchStartIdx !== -1) {
-        correctedHunks.push({ ...hunk, oldStart: matchStartIdx + 1 });
-      } else {
-        const firstNonMatchingLine = hunkLinesForOriginal[0];
-        throw new InvalidDiffError(
-          'Hunk Content Mismatch: Could not find the context for a hunk in the source file. ' +
-            `The mismatch occurred while searching for this line: 
-` +
-            firstNonMatchingLine +
-            `
- from the diff. ` +
-            "Please verify that the context lines (starting with ' ') and removal lines (starting with '-') " +
-            'in the diff *exactly* match the source file, including all indentation and whitespace.',
-        );
-      }
+    if (!foundMatchInTarget) {
+      [foundMatchInTarget, matchStartIdx0idx, matchEndIdx0idx] =
+        findFlexibleMatch(patchedLines, currentHunkOriginalBlockStripped, 0);
     }
-    finalCorrectedDiffs.push({ ...parsedDiff, hunks: correctedHunks });
+
+    if (foundMatchInTarget) {
+      const replacedBlockLen = matchEndIdx0idx - matchStartIdx0idx;
+
+      // Apply the patch.
+      patchedLines.splice(
+        matchStartIdx0idx,
+        replacedBlockLen,
+        ...currentHunkNewBlockRaw,
+      );
+      currentFileOffset += currentHunkNewBlockRaw.length - replacedBlockLen;
+    } else {
+      const firstNonMatchingLine = currentHunkOriginalBlockStripped[0];
+      throw new Errors.InvalidDiffError(
+        'Hunk Content Mismatch: Could not find the context for a hunk in the source file. ' +
+          `The mismatch occurred while searching for this line: 
+` +
+          firstNonMatchingLine +
+          `
+ from the diff. ` +
+          "Please verify that the context lines (starting with ' ') and removal lines (starting with '-') " +
+          'in the diff *exactly* match the source file, including all indentation and whitespace.',
+      );
+    }
   }
 
-  return finalCorrectedDiffs.map(formatDiff).join('\n');
+  return patchedLines.join('\n');
 }

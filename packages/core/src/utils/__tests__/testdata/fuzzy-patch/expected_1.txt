@@ -1,0 +1,230 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { Config } from '../config/config.js';
+import {
+  BaseTool,
+  ToolResult,
+  Icon,
+  ToolCallConfirmationDetails,
+} from './tools.js';
+import { Schema, Type } from '@google/genai';
+import { SchemaValidator } from '../utils/schemaValidator.js';
+import { makeRelative, shortenPath } from '../utils/paths.js';
+import { SessionStateService } from '../services/session-state-service.js';
+import { createVersionedFileObjectFromContent } from '../utils/fileUtils.js';
+import { getErrorMessage, isNodeError } from '../utils/errors.js';
+
+/**
+ * Parameters for the WriteFile tool
+ */
+export interface WriteFileToolParams {
+  file_path: string;
+  content: string;
+  base_content_sha256?: string;
+}
+
+/**
+ * Implementation of the WriteFile tool logic
+ */
+export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
+  static readonly Name: string = 'write_file';
+  private readonly sessionStateService: SessionStateService;
+
+  constructor(private readonly config: Config) {
+    super(
+      WriteFileTool.Name,
+      'Write File',
+      `Writes content to a file. This tool is for creating new files or completely overwriting existing ones.
+
+**Usage Protocol:**
+
+1.  **To create a new file:** Call the tool with the desired file_path and content. Do not provide a base_content_sha256.
+2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from read_file or a previous tool call). You **MUST** provide the sha256 from that version as the base_content_sha256. This prevents accidental overwrites of files that have changed.
+3.  If you attempt to write to an existing file path without providing a base_content_sha256, the operation will fail as a safety measure.`,
+      Icon.Pencil,
+      {
+        properties: {
+          file_path: {
+            description: "The absolute path to the file to write to (e.g., '/home/user/project/file.txt'). Relative paths are not supported.",
+            type: Type.STRING,
+          },
+          content: {
+            description: 'The content to write to the file.',
+            type: Type.STRING,
+          },
+          base_content_sha256: {
+            description:
+              'Optional: The SHA-256 hash of the file to be overwritten. Required if the file exists.',
+            type: Type.STRING,
+          },
+        },
+        required: ['file_path', 'content'],
+        type: Type.OBJECT,
+      } as Schema,
+    );
+    this.sessionStateService = config.getSessionStateService();
+  }
+
+  validateToolParams(params: WriteFileToolParams): string | null {
+    const errors = SchemaValidator.validate(this.schema.parameters, params);
+    if (errors) {
+      return errors;
+    }
+
+    const filePath = params.file_path;
+    if (!path.isAbsolute(filePath)) {
+      return `File path must be absolute: ${filePath}`;
+    }
+
+    const workspaceContext = this.config.getWorkspaceContext();
+    if (!workspaceContext.isPathWithinWorkspace(filePath)) {
+      const directories = workspaceContext.getDirectories();
+      return `File path must be within one of the workspace directories: ${directories.join(
+        ', ',
+      )}`;
+    }
+
+    return null;
+  }
+
+  getDescription(params: WriteFileToolParams): string {
+    if (!params.file_path) {
+      return `Path unavailable`;
+    }
+    const relativePath = makeRelative(
+      params.file_path,
+      this.config.getTargetDir(),
+    );
+    return `Writing to ${shortenPath(relativePath)}`;
+  }
+
+  private async _createFailureResult(
+    message: string,
+    display: string,
+    filePath: string,
+    content: string,
+  ): Promise<ToolResult> {
+    const latestFileState = await createVersionedFileObjectFromContent(
+      filePath,
+      this.sessionStateService,
+      content,
+    );
+    return {
+      llmContent: JSON.stringify(
+        {
+          success: false,
+          message,
+          latest_file_state: latestFileState,
+        },
+        null,
+        2,
+      ),
+      returnDisplay: display,
+    };
+  }
+
+  async execute(
+    params: WriteFileToolParams,
+    _signal: AbortSignal,
+  ): Promise<ToolResult> {
+    const validationError = this.validateToolParams(params);
+    if (validationError) {
+      return {
+        llmContent: JSON.stringify({
+          success: false,
+          message: `Invalid parameters: ${validationError}`,
+        }),
+        returnDisplay: `Error: ${validationError}`,
+      };
+    }
+
+    const { file_path, content, base_content_sha256 } = params;
+    let onDiskContent: string;
+    let fileExists = false;
+
+    try {
+      await fs.stat(file_path);
+      fileExists = true;
+    } catch (e) {
+      if (isNodeError(e) && e.code === 'ENOENT') {
+        fileExists = false;
+      } else {
+        const errorMsg = getErrorMessage(e);
+        return {
+          llmContent: JSON.stringify({
+            success: false,
+            message: `Error checking file existence: ${errorMsg}`,
+          }),
+          returnDisplay: `Error: ${errorMsg}`,
+        };
+      }
+    }
+
+    if (fileExists) {
+      if (!base_content_sha256) {
+        onDiskContent = await fs.readFile(file_path, 'utf-8');
+        return this._createFailureResult(
+          'State Mismatch: Attempting to overwrite an existing file without providing a `base_content_sha256`.
+',
+          'State Mismatch: Missing Hash',
+          file_path,
+          onDiskContent,
+        );
+      }
+
+      onDiskContent = await fs.readFile(file_path, 'utf-8');
+      const actualHash = crypto
+        .createHash('sha256')
+        .update(onDiskContent)
+        .digest('hex');
+
+      if (actualHash !== base_content_sha256) {
+        return this._createFailureResult(
+          'State Mismatch: File has changed on disk since it was last read.',
+          'State Mismatch: Hash Incorrect',
+          file_path,
+          onDiskContent,
+        );
+      }
+    }
+
+    try {
+      await fs.writeFile(file_path, content);
+      const latestFileState = await createVersionedFileObjectFromContent(
+        file_path,
+        this.sessionStateService,
+        content,
+      );
+      return {
+        llmContent: JSON.stringify(
+          {
+            success: true,
+            message: fileExists
+              ? 'File overwritten successfully.'
+              : 'File created successfully.',
+            latest_file_state: latestFileState,
+          },
+          null,
+          2,
+        ),
+        returnDisplay: fileExists ? 'File Overwritten' : 'File Created',
+      };
+    } catch (e) {
+      const errorMsg = getErrorMessage(e);
+      return {
+        llmContent: JSON.stringify({
+          success: false,
+          message: `Error writing to file: ${errorMsg}`,
+        }),
+        returnDisplay: `Error: ${errorMsg}`,
+      };
+    }
+  }
+}

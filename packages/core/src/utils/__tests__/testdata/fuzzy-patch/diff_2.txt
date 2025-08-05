@@ -1,0 +1,5 @@
+--- a/source_2.txt
++++ b/source_2.txt
+@@ -1,1 +1,2 @@
+ This is the original content.
++This is a new line.

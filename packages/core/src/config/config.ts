@@ -193,6 +193,7 @@ export interface ConfigParameters {
   ideMode?: boolean;
   ideClient: IdeClient;
   enableNextSpeakerCheck?: boolean;
+  logSafePatchFailureFolder?: string;
 }
 
 export class Config {
@@ -256,6 +257,7 @@ export class Config {
   private readonly experimentalAcp: boolean = false;
   private readonly enableNextSpeakerCheck: boolean;
   private readonly sessionStateService: SessionStateService;
+  private readonly logSafePatchFailureFolder: string | undefined;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -317,6 +319,7 @@ export class Config {
     this.ideClient = params.ideClient;
     this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
     this.sessionStateService = new SessionStateService();
+    this.logSafePatchFailureFolder = params.logSafePatchFailureFolder;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -649,6 +652,10 @@ export class Config {
 
   getEnableNextSpeakerCheck(): boolean {
     return this.enableNextSpeakerCheck;
+  }
+
+  getLogSafePatchFailureFolder(): string | undefined {
+    return this.logSafePatchFailureFolder;
   }
 
   getSessionStateService(): SessionStateService {

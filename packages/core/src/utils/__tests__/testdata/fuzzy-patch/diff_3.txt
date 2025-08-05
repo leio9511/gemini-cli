@@ -1,0 +1,10 @@
+--- a/source_3.txt
++++ b/source_3.txt
+@@ -1,2 +1,2 @@
+-This is the first line.
++This is the modified first line.
+ This is the second line.
+@@ -4,2 +4,2 @@
+-This is the fourth line.
++This is the modified fourth line.
+ This is the fifth line.

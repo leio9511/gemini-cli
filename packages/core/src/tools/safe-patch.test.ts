@@ -20,16 +20,17 @@ import * as fs from 'fs/promises';
 import * as crypto from 'crypto';
 import { createMockWorkspaceContext } from '../test-utils/mockWorkspaceContext';
 import * as fileUtils from '../utils/fileUtils';
-import * as diff from 'diff';
+import * as patchUtils from '../utils/patchUtils';
+import { InvalidDiffError } from '../errors.js';
 
 // Mock dependencies
 vi.mock('fs/promises');
 vi.mock('crypto');
-vi.mock('diff', async (importOriginal) => {
-  const actual = await importOriginal<typeof diff>();
+vi.mock('../utils/patchUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof patchUtils>();
   return {
     ...actual,
-    applyPatch: vi.fn(),
+    applyFuzzyPatch: vi.fn(),
   };
 });
 vi.mock('../utils/fileUtils', async (importOriginal) => {
@@ -50,7 +51,7 @@ describe('SafePatchTool', () => {
   // Mocked functions
   const mockedFs = fs as Mocked<typeof fs>;
   const mockedCrypto = crypto as Mocked<typeof crypto>;
-  const mockedDiff = diff as Mocked<typeof diff>;
+  const mockedPatchUtils = patchUtils as Mocked<typeof patchUtils>;
   const mockedCreateVersionedFileObjectFromContent = vi.mocked(
     fileUtils.createVersionedFileObjectFromContent,
   );
@@ -71,6 +72,7 @@ describe('SafePatchTool', () => {
         writeFile: vi.fn(),
       }),
       getWorkspaceContext: () => createMockWorkspaceContext(tempRootDir),
+      getLogSafePatchFailureFolder: () => undefined,
     } as unknown as Config;
 
     tool = new SafePatchTool(mockConfig);
@@ -105,7 +107,7 @@ describe('SafePatchTool', () => {
       baseHash,
     );
     if (newContent !== undefined && newHash !== undefined) {
-      mockedDiff.applyPatch.mockReturnValue(newContent);
+      mockedPatchUtils.applyFuzzyPatch.mockReturnValue(newContent);
       mockedFs.writeFile.mockResolvedValue();
       mockedCreateVersionedFileObjectFromContent.mockResolvedValue({
         file_path: filePath,
@@ -145,10 +147,9 @@ describe('SafePatchTool', () => {
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(true);
     expect(resultJson.latest_file_state.sha256).toBe(newHash);
-    expect(mockedDiff.applyPatch).toHaveBeenCalledWith(
+    expect(mockedPatchUtils.applyFuzzyPatch).toHaveBeenCalledWith(
       originalContent,
-      expect.stringContaining('@@ -1,3 +1,3 @@'), // The corrected diff string
-      { fuzzFactor: 0 },
+      unifiedDiff,
     );
   });
 
@@ -222,6 +223,9 @@ describe('SafePatchTool', () => {
     const baseHash = 'original-hash';
 
     setupMocks({ filePath, originalContent, baseHash });
+    mockedPatchUtils.applyFuzzyPatch.mockImplementation(() => {
+      throw new InvalidDiffError('Invalid Diff');
+    });
 
     const params: SafePatchToolParams = {
       file_path: filePath,
@@ -234,18 +238,23 @@ describe('SafePatchTool', () => {
     expect(result.returnDisplay).toBe('Invalid Diff');
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(false);
-    expect(resultJson.message).toContain('Hunk Content Mismatch');
+    expect(resultJson.message).toContain('Invalid Diff');
   });
 
-  it('should fail if the corrected patch fails to apply', async () => {
+  it('should log failed patches if logSafePatchFailureFolder is set', async () => {
+    const failureFolder = `${tempRootDir}/failures`;
+    vi.spyOn(mockConfig, 'getLogSafePatchFailureFolder').mockReturnValue(
+      failureFolder,
+    );
     const filePath = `${tempRootDir}/test.txt`;
     const originalContent = 'line 1\n';
-    const unifiedDiff =
-      '--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,1 @@\n-line 1\n+line one\n';
+    const unifiedDiff = 'invalid diff';
     const baseHash = 'original-hash';
 
     setupMocks({ filePath, originalContent, baseHash });
-    mockedDiff.applyPatch.mockReturnValue(false); // Simulate internal patch failure
+    mockedPatchUtils.applyFuzzyPatch.mockImplementation(() => {
+      throw new InvalidDiffError('Invalid Diff');
+    });
 
     const params: SafePatchToolParams = {
       file_path: filePath,
@@ -253,12 +262,20 @@ describe('SafePatchTool', () => {
       base_content_sha256: baseHash,
     };
 
-    const result = await tool.execute(params, abortSignal);
+    await tool.execute(params, abortSignal);
 
-    expect(result.returnDisplay).toBe('Patch Failed');
-    const resultJson = JSON.parse(result.llmContent as string);
-    expect(resultJson.success).toBe(false);
-    expect(resultJson.message).toContain('Internal Error');
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /source_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.txt$/,
+      ),
+      originalContent,
+    );
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /diff_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.txt$/,
+      ),
+      unifiedDiff,
+    );
   });
 
   it('should create a new file if it does not exist', async () => {
@@ -274,7 +291,7 @@ describe('SafePatchTool', () => {
     vi.mocked(mockedCrypto.createHash('sha256').digest).mockReturnValueOnce(
       baseHash,
     );
-    mockedDiff.applyPatch.mockReturnValue(newContent);
+    mockedPatchUtils.applyFuzzyPatch.mockReturnValue(newContent);
     mockedFs.writeFile.mockResolvedValue();
     mockedCreateVersionedFileObjectFromContent.mockResolvedValue({
       file_path: filePath,
@@ -326,6 +343,7 @@ describe('SafePatchTool', () => {
       const baseHash = 'original-hash';
 
       setupMocks({ filePath, originalContent, baseHash });
+      mockedPatchUtils.applyFuzzyPatch.mockReturnValue('line one\n');
 
       const params: SafePatchToolParams = {
         file_path: filePath,

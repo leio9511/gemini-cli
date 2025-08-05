@@ -4,92 +4,85 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import { describe, it, expect } from 'vitest';
-import { correctDiff } from './patchUtils';
+import { applyFuzzyPatch } from './patchUtils';
+import * as Errors from '../errors.js';
 
-describe('correctDiff', () => {
-  const baseContent = `line 1
-line 2
-line 3
-line 4
-line 5
-line 6
-line 7
-line 8
-line 9
-line 10`;
+describe('applyFuzzyPatch', () => {
+  const testDataDir = path.join(
+    __dirname,
+    '__tests__',
+    'testdata',
+    'fuzzy-patch',
+  );
 
-  it('should return an identical diff if line numbers are already correct', () => {
-    const patch = `--- a/file.txt
-+++ b/file.txt
-@@ -2,7 +2,7 @@
- line 2
- line 3
- line 4
--line 5
-+line five
- line 6
- line 7
- line 8`;
-    const result = correctDiff(baseContent, patch);
-    expect(result).toBe(patch);
+  it('should correctly apply a valid patch', async () => {
+    const sourcePath = path.join(testDataDir, 'source_1.txt');
+    const diffPath = path.join(testDataDir, 'diff_1.txt');
+    const expectedPath = path.join(testDataDir, 'expected_1.txt');
+
+    const sourceContent = await fs.readFile(sourcePath, 'utf-8');
+    const diffContent = await fs.readFile(diffPath, 'utf-8');
+    const expectedContent = await fs.readFile(expectedPath, 'utf-8');
+
+    const patchedContent = applyFuzzyPatch(sourceContent, diffContent);
+    expect(patchedContent.trim()).toEqual(expectedContent.trim());
   });
 
-  it('should correct the line number if context is found elsewhere', () => {
-    const patchWithWrongLine = `--- a/file.txt
-+++ b/file.txt
-@@ -1,7 +1,7 @@
- line 2
- line 3
- line 4
--line 5
-+line five
- line 6
- line 7
- line 8`;
-    const expectedCorrectedPatch = `--- a/file.txt
-+++ b/file.txt
-@@ -2,7 +1,7 @@
- line 2
- line 3
- line 4
--line 5
-+line five
- line 6
- line 7
- line 8`;
-    const result = correctDiff(baseContent, patchWithWrongLine);
-    expect(result).toBe(expectedCorrectedPatch);
+  it('should correctly apply a patch that adds a new line', async () => {
+    const sourcePath = path.join(testDataDir, 'source_2.txt');
+    const diffPath = path.join(testDataDir, 'diff_2.txt');
+    const expectedPath = path.join(testDataDir, 'expected_2.txt');
+
+    const sourceContent = await fs.readFile(sourcePath, 'utf-8');
+    const diffContent = await fs.readFile(diffPath, 'utf-8');
+    const expectedContent = await fs.readFile(expectedPath, 'utf-8');
+
+    const patchedContent = applyFuzzyPatch(sourceContent, diffContent);
+    expect(patchedContent.trim()).toEqual(expectedContent.trim());
   });
 
-  it('should throw an error if the diff context is not found', () => {
-    const patch = `--- a/file.txt
-+++ b/file.txt
-@@ -1,2 +1,2 @@
- not found line 1
--not found line 2
-+not found line two`;
-    expect(() => correctDiff(baseContent, patch)).toThrow(
-      'Hunk Content Mismatch',
+  it('should correctly apply a patch with multiple hunks', async () => {
+    const sourcePath = path.join(testDataDir, 'source_3.txt');
+    const diffPath = path.join(testDataDir, 'diff_3.txt');
+    const expectedPath = path.join(testDataDir, 'expected_3.txt');
+
+    const sourceContent = await fs.readFile(sourcePath, 'utf-8');
+    const diffContent = await fs.readFile(diffPath, 'utf-8');
+    const expectedContent = await fs.readFile(expectedPath, 'utf-8');
+
+    const patchedContent = applyFuzzyPatch(sourceContent, diffContent);
+    expect(patchedContent.trim()).toEqual(expectedContent.trim());
+  });
+
+  it('should throw InvalidDiffError for a fundamentally invalid diff', () => {
+    const sourceContent = 'Hello, World!';
+    const invalidDiff = `--- a/source.txt
++++ b/source.txt
+@@ -1,1 +1,1 @@
+-Goodbye, World!
++Hello, Gemini!
+`;
+    expect(() => applyFuzzyPatch(sourceContent, invalidDiff)).toThrow(
+      Errors.InvalidDiffError,
     );
   });
 
-  it('should handle content with blank lines', () => {
-    const contentWithBlanks = `line 1
-line 2
-
-line 4
-line 5`;
-    const patch = `--- a/file.txt
-+++ b/file.txt
-@@ -1,5 +1,5 @@
- line 1
- line 2
- 
--line 4
-+line four
- line 5`;
-    const result = correctDiff(contentWithBlanks, patch);
-    expect(result).toBe(patch);
+  it('should correctly apply a patch for a new file', () => {
+    const sourceContent = '';
+    const diffContent = `--- /dev/null
++++ b/new_file.txt
+@@ -0,0 +1,3 @@
++This is a new file.
++It has three lines.
++This is the third line.
+`;
+    const expectedContent = `This is a new file.
+It has three lines.
+This is the third line.`;
+    const patchedContent = applyFuzzyPatch(sourceContent, diffContent);
+    expect(patchedContent.trim()).toEqual(expectedContent);
   });
 });
