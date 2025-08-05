@@ -15,6 +15,7 @@ import {
   Icon,
   ToolCallConfirmationDetails,
   ToolResultDisplay,
+  ToolConfirmationOutcome,
 } from './tools.js';
 import { Schema, Type } from '@google/genai';
 import { SessionStateService } from '../services/session-state-service.js';
@@ -150,9 +151,7 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
   async shouldConfirmExecute(
     params: WriteFileToolParams,
   ): Promise<false | ToolCallConfirmationDetails> {
-    if (
-      this.config.getToolConfirmationSetting(WriteFileTool.Name) === 'always'
-    ) {
+    if (this.config.isToolGroupAlwaysAllowed('file_modification')) {
       return false;
     }
 
@@ -198,7 +197,11 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
       fileDiff,
       originalContent: onDiskContent,
       newContent: content,
-      onConfirm: async () => {},
+      onConfirm: async (outcome) => {
+        if (outcome === ToolConfirmationOutcome.ProceedAlways) {
+          this.config.setToolGroupAlwaysAllowed('file_modification');
+        }
+      },
     };
   }
 }

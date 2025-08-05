@@ -10,6 +10,7 @@ import {
   Icon,
   ToolResultDisplay,
   ToolCallConfirmationDetails,
+  ToolConfirmationOutcome,
 } from './tools.js';
 import { Config } from '../config/config.js';
 import { SessionStateService } from '../services/session-state-service.js';
@@ -187,9 +188,7 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
     params: SafePatchToolParams,
     _abortSignal: AbortSignal,
   ): Promise<false | ToolCallConfirmationDetails> {
-    if (
-      this.config.getToolConfirmationSetting(SafePatchTool.Name) === 'always'
-    ) {
+    if (this.config.isToolGroupAlwaysAllowed('file_modification')) {
       return false;
     }
 
@@ -215,7 +214,11 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
       fileDiff: unified_diff,
       originalContent,
       newContent,
-      onConfirm: async () => {},
+      onConfirm: async (outcome) => {
+        if (outcome === ToolConfirmationOutcome.ProceedAlways) {
+          this.config.setToolGroupAlwaysAllowed('file_modification');
+        }
+      },
     };
   }
 }

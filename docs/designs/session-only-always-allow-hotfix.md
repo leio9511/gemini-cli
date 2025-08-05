@@ -1,4 +1,4 @@
-### **TDD Plan: Implementing Session-Only "Always Allow" for File Modification Tools**
+### **TDD Plan: Implementing Shared Session-Only "Always Allow" for File Modification Tools**
 
 **Status:** Proposal
 **Author:** gemini-agent
@@ -8,99 +8,94 @@
 
 ### 1. Abstract
 
-This document outlines a development plan to align the confirmation behavior of `safe_patch` and `write_file` with the existing, session-only "always allow" functionality of the `shell` tool. The current implementation of the file modification tools does not respect a user's in-session choice to bypass confirmations, leading to an inconsistent user experience. This plan details a test-driven approach to implement a session-specific allowlist for both tools, ensuring that a user's preference to "always allow" is respected for the duration of the current CLI session.
+This document outlines a development plan to implement a shared, session-only "always allow" functionality for the `safe_patch` and `write_file` tools. The current implementation does not respect a user's in-session choice to bypass confirmations consistently, and the initial fix incorrectly isolated this preference to each tool. This plan details a test-driven approach to implement a shared, session-specific allowlist, ensuring that a user's preference to "always allow" for one file modification tool is respected by the other for the duration of the current CLI session.
 
-This plan explicitly reverts the changes made under the incorrect assumption that "always allow" was a persistent, global setting, as detailed in a previous design document.
+This plan explicitly reverts the changes made under the incorrect assumption that "always allow" was a persistent, global setting, and also corrects the flawed assumption that the setting should be handled independently by each tool.
 
 ### 2. Problem Statement
 
-The "always allow" feature, which is intended to streamline tool use by bypassing repeated confirmations within a single session, is not functional for `safe_patch` and `write_file`. While the `shell` tool correctly remembers this preference for the session's lifetime, the file modification tools prompt for confirmation on every use. This inconsistency creates unnecessary friction for the user. The desired behavior is for all tools that support confirmation to handle the "always allow" setting as a session-only preference.
+The "always allow" feature is intended to streamline tool use by bypassing repeated confirmations within a single session. However, it is not functional for `safe_patch` and `write_file`. Furthermore, the desired user experience is that related tools, such as those that modify files, should share this preference. If a user "always allows" a `write_file` operation, they should not be prompted again for a `safe_patch` operation in the same session. The current implementation prompts for every use, creating unnecessary friction.
 
 ### 3. Cause Analysis
 
-The `ShellTool` class uses a private, instance-level `allowlist` to track commands that have been approved for the session. When a user selects "always allow," the command is added to this list, and subsequent calls bypass confirmation.
+The `ShellTool` class uses a private, instance-level `allowlist` to track commands that have been approved for the session. This model is insufficient for file modification tools, which are expected to share the preference.
 
-Conversely, the `SafePatchTool` and `WriteFileTool` classes lack this internal, session-specific state management. Their `shouldConfirmExecute` methods were designed to check a global, persistent configuration based on a flawed understanding of the feature's intent. The `onConfirm` callback in these tools is currently empty and does not capture the user's "always allow" choice.
+The `SafePatchTool` and `WriteFileTool` classes currently lack any mechanism for shared state management. Their `shouldConfirmExecute` methods were designed to check a global, persistent configuration based on a flawed understanding of the feature's intent. The previous fix (commit `9234db61`) incorrectly introduced logic to check a global `toolConfirmation` setting in the main `Config` object, which will be reverted.
 
-The previous fix (commit `9234db61`) incorrectly introduced logic to check a global `toolConfirmation` setting in the main `Config` object. This will be reverted.
+The correct approach is to manage this shared, session-only state within the central `Config` object, accessible by all tools.
 
 ### 4. Agile TDD Execution Plan
 
-This plan will introduce a session-specific "always allow" mechanism to the file modification tools, following a strict Test-Driven Development (TDD) workflow. This involves reverting the incorrect global setting logic and replacing it with a session-based approach.
+This plan will introduce a shared, session-specific "always allow" mechanism for file modification tools, following a strict Test-Driven Development (TDD) workflow.
 
 ---
 
-#### **Phase 1: Implement Session-Only "Always Allow" for `write_file`**
+#### **Phase 1: Implement Shared Session-Only State in `Config`**
 
-**Goal:** Ensure `write_file` respects the user's choice to bypass confirmation for the current session.
+**Goal:** Create a centralized, session-specific mechanism in the `Config` class to manage the "always allow" state for groups of tools.
 
-1.  **Task: Write Failing Test for Session-Specific Confirmation (Red)**
-    *   **Where:** `packages/core/src/tools/write-file.test.ts`.
-    *   **How:** Create a new test case for `shouldConfirmExecute`.
-        1.  Instantiate `WriteFileTool`.
-        2.  Call `shouldConfirmExecute` once and capture the returned confirmation details object.
-        3.  Invoke its `onConfirm` callback, passing `ToolConfirmationOutcome.ProceedAlways` as the argument.
-        4.  Call `shouldConfirmExecute` a *second time* with the same parameters.
-    *   **Assertion:** Assert that the *second* call to `shouldConfirmExecute` returns `false`. The test will fail because the tool currently has no internal state to remember the choice.
-    *   **Command:** `npm test -w @google/gemini-cli-core -- src/tools/write-file.test.ts`
+1.  **Task: Write Failing Test for Shared State (Red)**
+    - **Where:** A new test file, `packages/core/src/config/config-allowlist.test.ts`.
+    - **How:**
+      1.  Instantiate `Config`.
+      2.  Assert that `isToolGroupAlwaysAllowed('file_modification')` initially returns `false`.
+      3.  Call a new method, `setToolGroupAlwaysAllowed('file_modification')`.
+      4.  Assert that `isToolGroupAlwaysAllowed('file_modification')` now returns `true`.
+    - **Assertion:** The test will fail because the methods and underlying state do not exist.
 
-2.  **Task: Implement Session-Specific State (Green)**
-    *   **Where:** `packages/core/src/tools/write-file.ts`.
-    *   **How:**
-        1.  **Revert:** Remove the incorrect check for `this.config.getToolConfirmationSetting(...)`.
-        2.  **Implement:** Add a private instance variable: `private alwaysAllowed = false;`.
-        3.  **Implement:** In `shouldConfirmExecute`, add a check at the beginning for the new `alwaysAllowed` flag.
-        4.  **Implement:** In the `onConfirm` callback returned by `shouldConfirmExecute`, add logic to set `this.alwaysAllowed = true;` when the `outcome` is `ToolConfirmationOutcome.ProceedAlways`.
-        5.  **Import:** Add `ToolConfirmationOutcome` to the import from `./tools.js`.
-    *   **Assertion:** The test from the previous step should now pass.
-
-3.  **Task: Refactor `shouldConfirmExecute` (Refactor)**
-    *   **Where:** `packages/core/src/tools/write-file.ts` and `packages/core/src/tools/write-file.test.ts`.
-    *   **How:** Review the changes for clarity and simplicity. Remove the now-unused test that mocks `getToolConfirmationSetting`.
+2.  **Task: Implement Shared State in `Config` (Green)**
+    - **Where:** `packages/core/src/config/config.ts`.
+    - **How:**
+      1.  Add a private instance variable: `private alwaysAllowedToolGroups = new Set<string>();`.
+      2.  Implement the public method `setToolGroupAlwaysAllowed(group: string): void` which adds the given group to the `Set`.
+      3.  Implement the public method `isToolGroupAlwaysAllowed(group:string): boolean` which checks if the group exists in the `Set`.
+    - **Assertion:** The test from the previous step should now pass.
 
 ---
 
-#### **Phase 2: Implement Session-Only "Always Allow" for `safe_patch`**
+#### **Phase 2: Update File Tools to Use Shared State**
 
-**Goal:** Ensure `safe_patch` respects the user's choice to bypass confirmation for the current session.
+**Goal:** Ensure `write_file` and `safe_patch` use the new shared state mechanism from `Config`.
 
-1.  **Task: Write Failing Test for Session-Specific Confirmation (Red)**
-    *   **Where:** `packages/core/src/tools/safe-patch.test.ts`.
-    *   **How:** Create a new test case for `shouldConfirmExecute`, following the exact same pattern as the one for `write_file`.
-    *   **Assertion:** Assert that the second call to `shouldConfirmExecute` returns `false`. This test will fail.
-    *   **Command:** `npm test -w @google/gemini-cli-core -- src/tools/safe-patch.test.ts`
+1.  **Task: Write Failing Test for Shared Confirmation (Red)**
+    - **Where:** `packages/core/src/tools/file-tools-shared-allow.test.ts`.
+    - **How:** Create a new test that verifies the shared behavior.
+      1.  Instantiate `Config`, `WriteFileTool`, and `SafePatchTool`.
+      2.  Call `shouldConfirmExecute` on the `WriteFileTool` instance.
+      3.  Invoke its `onConfirm` callback, passing `ToolConfirmationOutcome.ProceedAlways`.
+      4.  Call `shouldConfirmExecute` on the **`SafePatchTool`** instance.
+    - **Assertion:** Assert that the call to `safe_patch`'s `shouldConfirmExecute` returns `false`. The test will fail because the tools are not yet using the shared state.
+    - **Command:** `npm test -w @google/gemini-cli-core -- src/tools/file-tools-shared-allow.test.ts`
 
-2.  **Task: Implement Session-Specific State (Green)**
-    *   **Where:** `packages/core/src/tools/safe-patch.ts`.
-    *   **How:**
-        1.  **Revert:** Remove the incorrect check for `this.config.getToolConfirmationSetting(...)`.
-        2.  **Implement:** Add a private instance variable: `private alwaysAllowed = false;`.
-        3.  **Implement:** Update `shouldConfirmExecute` to check this flag.
-        4.  **Implement:** Implement the `onConfirm` callback to set the flag when appropriate.
-        5.  **Import:** Add `ToolConfirmationOutcome`.
-    *   **Assertion:** The test from the previous step should now pass.
+2.  **Task: Update `write_file` to Use Shared State (Green)**
+    - **Where:** `packages/core/src/tools/write-file.ts`.
+    - **How:**
+      1.  In `shouldConfirmExecute`, replace the check for the private `alwaysAllowed` flag with a call to `this.config.isToolGroupAlwaysAllowed('file_modification')`.
+      2.  In the `onConfirm` callback, replace the logic that sets the private flag with a call to `this.config.setToolGroupAlwaysAllowed('file_modification')`.
+      3.  Remove the now-unused `private alwaysAllowed = false;` instance variable.
 
-3.  **Task: Refactor Both Tools (Refactor)**
-    *   **Where:** `safe-patch.ts`, `write-file.ts`, and their corresponding test files.
-    *   **How:** Review the changes in both tools for consistency and clarity. Remove the now-unused tests that mock `getToolConfirmationSetting`.
+3.  **Task: Update `safe_patch` to Use Shared State (Green)**
+    - **Where:** `packages/core/src/tools/safe-patch.ts`.
+    - **How:** Apply the exact same changes as for `write_file`.
+    - **Assertion:** The test from step 1 of this phase should now pass.
 
 ---
 
-#### **Phase 3: Revert Unnecessary Global Configuration**
+#### **Phase 3: Refactor and Final Verification**
 
-**Goal:** Remove the now-unused `toolConfirmation` logic from the global `Config` object.
+**Goal:** Clean up the codebase and run a full preflight check.
 
-1.  **Task: Remove `toolConfirmation` from `Config`**
-    *   **Where:** `packages/core/src/config/config.ts`.
-    *   **How:**
-        1.  Remove the `toolConfirmation` property from the `ConfigParameters` interface and the `Config` class.
-        2.  Remove the `getToolConfirmationSetting` method.
-        3.  Remove the initialization of `this.toolConfirmation` in the `Config` constructor.
-    *   **Verification:** Run the full test suite to ensure no other part of the codebase was relying on this.
+1.  **Task: Refactor and Remove Obsolete Tests**
+    - **Where:** `safe-patch.test.ts` and `write-file.test.ts`.
+    - **How:** Remove the individual "always allow" tests from each file, as their behavior is now covered by the new shared test. Ensure no other tests are checking the old, incorrect global configuration.
+
+2.  **Task: Final Verification**
+    - **How:** Run the full preflight check to ensure all changes are valid and no regressions were introduced.
+    - **Command:** `npm run preflight`
 
 ---
 
 **Milestone: Hotfix Complete**
 
-*   **State:** Green.
-*   **Verification:** All unit tests for `WriteFileTool` and `SafePatchTool` pass. `npm run preflight` is successful. Manual testing confirms that "always allow" now works correctly as a session-only setting for both tools, consistent with the `shell` tool.
+- **State:** Green.
+- **Verification:** All unit tests pass, including the new shared confirmation test. `npm run preflight` is successful. Manual testing confirms that "always allow" for one file tool correctly applies to the other for the duration of the session.

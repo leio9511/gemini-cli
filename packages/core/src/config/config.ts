@@ -194,7 +194,6 @@ export interface ConfigParameters {
   ideClient: IdeClient;
   enableNextSpeakerCheck?: boolean;
   logSafePatchFailureFolder?: string;
-  toolConfirmation?: Record<string, 'always' | 'never' | 'prompt'>;
 }
 
 export class Config {
@@ -259,10 +258,7 @@ export class Config {
   private readonly enableNextSpeakerCheck: boolean;
   private readonly sessionStateService: SessionStateService;
   private readonly logSafePatchFailureFolder: string | undefined;
-  private readonly toolConfirmation: Record<
-    string,
-    'always' | 'never' | 'prompt'
-  >;
+  private readonly alwaysAllowedToolGroups = new Set<string>();
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -325,7 +321,6 @@ export class Config {
     this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
     this.sessionStateService = new SessionStateService();
     this.logSafePatchFailureFolder = params.logSafePatchFailureFolder;
-    this.toolConfirmation = params.toolConfirmation ?? {};
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -668,8 +663,12 @@ export class Config {
     return this.sessionStateService;
   }
 
-  getToolConfirmationSetting(toolName: string): 'always' | 'never' | 'prompt' {
-    return this.toolConfirmation[toolName] ?? 'prompt';
+  isToolGroupAlwaysAllowed(group: string): boolean {
+    return this.alwaysAllowedToolGroups.has(group);
+  }
+
+  setToolGroupAlwaysAllowed(group: string): void {
+    this.alwaysAllowedToolGroups.add(group);
   }
 
   async getGitService(): Promise<GitService> {

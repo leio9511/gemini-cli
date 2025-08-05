@@ -27,7 +27,8 @@ const mockFileUtils = vi.mocked(fileUtils);
 const mockConfig = {
   getWorkspaceContext: () => createMockWorkspaceContext(rootDir),
   getSessionStateService: vi.fn(),
-  getToolConfirmationSetting: vi.fn(),
+  isToolGroupAlwaysAllowed: vi.fn(),
+  setToolGroupAlwaysAllowed: vi.fn(),
 } as unknown as Config;
 
 const mockSessionStateService = {
@@ -249,25 +250,6 @@ describe('WriteFileTool (TDD)', () => {
 
       expect(confirmation.type).toBe('edit');
       expect(confirmation.fileName).toBe(filePath);
-    });
-
-    it('should return false if the tool is set to "always allow"', async () => {
-      const filePath = `${rootDir}/any_file.txt`;
-      const content = 'any content';
-
-      vi.mocked(mockConfig.getToolConfirmationSetting).mockReturnValue(
-        'always',
-      );
-
-      const confirmation = await tool.shouldConfirmExecute({
-        file_path: filePath,
-        content,
-      });
-
-      expect(confirmation).toBe(false);
-      expect(mockConfig.getToolConfirmationSetting).toHaveBeenCalledWith(
-        'write_file',
-      );
     });
   });
 });
