@@ -12,6 +12,7 @@ import { Config } from '../config/config.js';
 import { SessionStateService } from '../services/session-state-service.js';
 import { createMockWorkspaceContext } from '../test-utils/mockWorkspaceContext.js';
 import * as fileUtils from '../utils/fileUtils.js';
+import { ToolEditConfirmationDetails } from './tools.js';
 
 const rootDir = '/test/root';
 
@@ -85,6 +86,11 @@ describe('WriteFileTool (TDD)', () => {
       sha256: mockHash,
       content,
     });
+    expect(result.returnDisplay).toEqual(
+      expect.objectContaining({
+        fileName: filePath,
+      }),
+    );
   });
 
   it('should overwrite an existing file with the correct hash', async () => {
@@ -125,6 +131,11 @@ describe('WriteFileTool (TDD)', () => {
       sha256: mockHash,
       content: newContent,
     });
+    expect(result.returnDisplay).toEqual(
+      expect.objectContaining({
+        fileName: filePath,
+      }),
+    );
   });
 
   it('should fail to overwrite if hash is missing', async () => {
@@ -172,5 +183,71 @@ describe('WriteFileTool (TDD)', () => {
     expect(mockFs.writeFile).not.toHaveBeenCalled();
     const resultObj = JSON.parse(result.llmContent as string);
     expect(resultObj.success).toBe(false);
+  });
+
+  describe('shouldConfirmExecute', () => {
+    it('should return false if the hash check fails', async () => {
+      const filePath = `${rootDir}/existing_file.txt`;
+      const oldContent = 'old content';
+      const newContent = 'new content';
+      const oldHash = 'old-hash';
+      const wrongHash = 'wrong-hash';
+
+      mockFs.access.mockResolvedValue(undefined);
+      mockFs.readFile.mockResolvedValue(oldContent);
+      mockCrypto.createHash.mockReturnValueOnce({
+        update: vi.fn().mockReturnThis(),
+        digest: vi.fn().mockReturnValue(oldHash),
+      } as unknown as crypto.Hash);
+
+      const confirmation = await tool.shouldConfirmExecute({
+        file_path: filePath,
+        content: newContent,
+        base_content_sha256: wrongHash,
+      });
+
+      expect(confirmation).toBe(false);
+    });
+
+    it('should return confirmation details if the hash check passes', async () => {
+      const filePath = `${rootDir}/existing_file.txt`;
+      const oldContent = 'old content';
+      const newContent = 'new content';
+      const oldHash = 'old-hash';
+
+      mockFs.access.mockResolvedValue(undefined);
+      mockFs.readFile.mockResolvedValue(oldContent);
+      mockCrypto.createHash.mockReturnValueOnce({
+        update: vi.fn().mockReturnThis(),
+        digest: vi.fn().mockReturnValue(oldHash),
+      } as unknown as crypto.Hash);
+
+      const confirmation = (await tool.shouldConfirmExecute({
+        file_path: filePath,
+        content: newContent,
+        base_content_sha256: oldHash,
+      })) as ToolEditConfirmationDetails;
+
+      expect(confirmation.type).toBe('edit');
+      expect(confirmation.fileName).toBe(filePath);
+      expect(confirmation.originalContent).toBe(oldContent);
+      expect(confirmation.newContent).toBe(newContent);
+      expect(confirmation.fileDiff).toBeDefined();
+    });
+
+    it('should return confirmation details for a new file', async () => {
+      const filePath = `${rootDir}/new_file.txt`;
+      const newContent = 'new content';
+
+      mockFs.readFile.mockRejectedValue({ code: 'ENOENT' });
+
+      const confirmation = (await tool.shouldConfirmExecute({
+        file_path: filePath,
+        content: newContent,
+      })) as ToolEditConfirmationDetails;
+
+      expect(confirmation.type).toBe('edit');
+      expect(confirmation.fileName).toBe(filePath);
+    });
   });
 });

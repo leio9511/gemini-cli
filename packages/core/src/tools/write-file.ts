@@ -6,13 +6,21 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as Diff from 'diff';
 import * as crypto from 'crypto';
 import { Config } from '../config/config.js';
-import { BaseTool, ToolResult, Icon } from './tools.js';
+import {
+  BaseTool,
+  ToolResult,
+  Icon,
+  ToolCallConfirmationDetails,
+  ToolResultDisplay,
+} from './tools.js';
 import { Schema, Type } from '@google/genai';
 import { SessionStateService } from '../services/session-state-service.js';
 import { createVersionedFileObjectFromContent } from '../utils/fileUtils.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { DEFAULT_DIFF_OPTIONS } from './diffOptions.js';
 
 export interface WriteFileToolParams {
   file_path: string;
@@ -66,6 +74,7 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
     _signal: AbortSignal,
   ): Promise<ToolResult> {
     const { file_path, content, base_content_sha256 } = params;
+    let onDiskContent = '';
     let fileExists = false;
     try {
       await fs.access(file_path);
@@ -84,7 +93,7 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
           returnDisplay: 'Error: File exists, but no hash was provided.',
         };
       }
-      const onDiskContent = await fs.readFile(file_path, 'utf-8');
+      onDiskContent = await fs.readFile(file_path, 'utf-8');
       const actualHash = crypto
         .createHash('sha256')
         .update(onDiskContent)
@@ -119,7 +128,13 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
           null,
           2,
         ),
-        returnDisplay: fileExists ? 'File Overwritten' : 'File Created',
+        returnDisplay: {
+          type: 'edit',
+          fileName: file_path,
+          fileDiff: Diff.createPatch(file_path, onDiskContent, content),
+          originalContent: onDiskContent,
+          newContent: content,
+        } as ToolResultDisplay,
       };
     } catch (e) {
       return {
@@ -130,5 +145,54 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
         returnDisplay: `Error: ${getErrorMessage(e)}`,
       };
     }
+  }
+
+  async shouldConfirmExecute(
+    params: WriteFileToolParams,
+  ): Promise<false | ToolCallConfirmationDetails> {
+    const { file_path, content, base_content_sha256 } = params;
+    let onDiskContent = '';
+    let fileExists = false;
+    try {
+      onDiskContent = await fs.readFile(file_path, 'utf-8');
+      fileExists = true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw e;
+      }
+    }
+
+    if (fileExists) {
+      if (!base_content_sha256) {
+        // This should be caught by execute, but as a safeguard:
+        return false;
+      }
+      const actualHash = crypto
+        .createHash('sha256')
+        .update(onDiskContent)
+        .digest('hex');
+      if (actualHash !== base_content_sha256) {
+        return false;
+      }
+    }
+
+    const fileDiff = Diff.createPatch(
+      file_path,
+      onDiskContent,
+      content,
+      'Current',
+      'Proposed',
+      DEFAULT_DIFF_OPTIONS,
+    );
+
+    return {
+      type: 'edit',
+      title: 'Confirm File Write',
+      fileName: file_path,
+      fileDiff,
+      originalContent: onDiskContent,
+      newContent: content,
+      onConfirm: async () => {},
+    };
   }
 }

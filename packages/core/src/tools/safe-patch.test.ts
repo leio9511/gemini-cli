@@ -143,7 +143,11 @@ describe('SafePatchTool', () => {
 
     const result = await tool.execute(params, abortSignal);
 
-    expect(result.returnDisplay).toBe('Patch Applied');
+    expect(result.returnDisplay).toEqual(
+      expect.objectContaining({
+        fileDiff: unifiedDiff,
+      }),
+    );
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(true);
     expect(resultJson.latest_file_state.sha256).toBe(newHash);
@@ -178,7 +182,11 @@ describe('SafePatchTool', () => {
 
     const result = await tool.execute(params, abortSignal);
 
-    expect(result.returnDisplay).toBe('Patch Applied');
+    expect(result.returnDisplay).toEqual(
+      expect.objectContaining({
+        fileDiff: unifiedDiff,
+      }),
+    );
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(true);
     expect(resultJson.latest_file_state.sha256).toBe(newHash);
@@ -308,7 +316,11 @@ describe('SafePatchTool', () => {
 
     const result = await tool.execute(params, abortSignal);
 
-    expect(result.returnDisplay).toBe('Patch Applied');
+    expect(result.returnDisplay).toEqual(
+      expect.objectContaining({
+        fileDiff: unifiedDiff,
+      }),
+    );
     const resultJson = JSON.parse(result.llmContent as string);
     expect(resultJson.success).toBe(true);
   });

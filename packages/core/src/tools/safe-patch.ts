@@ -8,6 +8,7 @@ import {
   BaseTool,
   ToolResult,
   Icon,
+  ToolResultDisplay,
   ToolCallConfirmationDetails,
 } from './tools.js';
 import { Config } from '../config/config.js';
@@ -172,7 +173,13 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
         null,
         2,
       ),
-      returnDisplay: 'Patch Applied',
+      returnDisplay: {
+        type: 'edit',
+        fileName: file_path,
+        fileDiff: unified_diff,
+        originalContent,
+        newContent,
+      } as ToolResultDisplay,
     };
   }
 
