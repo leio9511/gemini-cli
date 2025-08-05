@@ -1,0 +1,33 @@
+--- a/packages/core/src/tools/write-file.ts
++++ b/packages/core/src/tools/write-file.ts
+@@ -36,12 +36,12 @@
+       'Write File',
+       `Writes content to a file. This tool is for creating new files or completely overwriting existing ones.
+ 
+-**Usage Protocol:**
+-
+-1.  **To create a new file:** Call the tool with the desired 
+-`file_path`
+- and 
+-`content`
+-. Do not provide a 
+-`base_content_sha256`
+-.
+-2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from 
+-`read_file`
+- or a previous tool call). You **MUST** provide the 
+-`sha256`
+- from that version as the 
+-`base_content_sha256`
+-. This prevents accidental overwrites of files that have changed.
+-3.  If you attempt to write to an existing file path without providing a 
+-`base_content_sha256`
+-, the operation will fail as a safety measure.`,
++**Usage Protocol:**
++
++1.  **To create a new file:** Call the tool with the desired file_path and content. Do not provide a base_content_sha256.
++2.  **To overwrite an existing file:** You **MUST** first have the latest versioned content of the file (from read_file or a previous tool call). You **MUST** provide the sha256 from that version as the base_content_sha256. This prevents accidental overwrites of files that have changed.
++3.  If you attempt to write to an existing file path without providing a base_content_sha256, the operation will fail as a safety measure.`,
+       Icon.Pencil,
+       {
+         properties: {
