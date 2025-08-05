@@ -479,6 +479,7 @@ export async function loadCliConfig(
     ideModeFeature,
     ideClient,
     enableNextSpeakerCheck: settings.enableNextSpeakerCheck,
+    logSafePatchFailureFolder: settings.logSafePatchFailureFolder,
   });
 }
 

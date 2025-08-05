@@ -115,6 +115,7 @@ export interface Settings {
 
   enableNextSpeakerCheck?: boolean;
   dnsResolutionOrder?: DnsResolutionOrder;
+  logSafePatchFailureFolder?: string;
 }
 
 export interface SettingsError {
