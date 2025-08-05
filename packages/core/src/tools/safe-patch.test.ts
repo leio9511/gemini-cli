@@ -73,6 +73,7 @@ describe('SafePatchTool', () => {
       }),
       getWorkspaceContext: () => createMockWorkspaceContext(tempRootDir),
       getLogSafePatchFailureFolder: () => undefined,
+      getToolConfirmationSetting: vi.fn(),
     } as unknown as Config;
 
     tool = new SafePatchTool(mockConfig);
@@ -371,6 +372,29 @@ describe('SafePatchTool', () => {
       expect(confirmation.type).toBe('edit');
       expect(confirmation.fileName).toBe(filePath);
       expect(confirmation.fileDiff).toBe(unifiedDiff);
+    });
+
+    it('should return false if the tool is set to "always allow"', async () => {
+      const filePath = `${tempRootDir}/test.txt`;
+      const unifiedDiff = 'any diff';
+      const baseHash = 'original-hash';
+
+      vi.mocked(mockConfig.getToolConfirmationSetting).mockReturnValue(
+        'always',
+      );
+
+      const params: SafePatchToolParams = {
+        file_path: filePath,
+        unified_diff: unifiedDiff,
+        base_content_sha256: baseHash,
+      };
+
+      const confirmation = await tool.shouldConfirmExecute(params, abortSignal);
+
+      expect(confirmation).toBe(false);
+      expect(mockConfig.getToolConfirmationSetting).toHaveBeenCalledWith(
+        'safe_patch',
+      );
     });
   });
 });

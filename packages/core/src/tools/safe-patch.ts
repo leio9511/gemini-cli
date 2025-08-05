@@ -187,6 +187,12 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
     params: SafePatchToolParams,
     _abortSignal: AbortSignal,
   ): Promise<false | ToolCallConfirmationDetails> {
+    if (
+      this.config.getToolConfirmationSetting(SafePatchTool.Name) === 'always'
+    ) {
+      return false;
+    }
+
     const { file_path, unified_diff, base_content_sha256 } = params;
     const { content: originalContent, errorResult: verificationError } =
       await this._verifyFileState(file_path, base_content_sha256);

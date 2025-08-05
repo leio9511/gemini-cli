@@ -194,6 +194,7 @@ export interface ConfigParameters {
   ideClient: IdeClient;
   enableNextSpeakerCheck?: boolean;
   logSafePatchFailureFolder?: string;
+  toolConfirmation?: Record<string, 'always' | 'never' | 'prompt'>;
 }
 
 export class Config {
@@ -258,6 +259,10 @@ export class Config {
   private readonly enableNextSpeakerCheck: boolean;
   private readonly sessionStateService: SessionStateService;
   private readonly logSafePatchFailureFolder: string | undefined;
+  private readonly toolConfirmation: Record<
+    string,
+    'always' | 'never' | 'prompt'
+  >;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -320,6 +325,7 @@ export class Config {
     this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
     this.sessionStateService = new SessionStateService();
     this.logSafePatchFailureFolder = params.logSafePatchFailureFolder;
+    this.toolConfirmation = params.toolConfirmation ?? {};
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -660,6 +666,10 @@ export class Config {
 
   getSessionStateService(): SessionStateService {
     return this.sessionStateService;
+  }
+
+  getToolConfirmationSetting(toolName: string): 'always' | 'never' | 'prompt' {
+    return this.toolConfirmation[toolName] ?? 'prompt';
   }
 
   async getGitService(): Promise<GitService> {

@@ -150,6 +150,12 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
   async shouldConfirmExecute(
     params: WriteFileToolParams,
   ): Promise<false | ToolCallConfirmationDetails> {
+    if (
+      this.config.getToolConfirmationSetting(WriteFileTool.Name) === 'always'
+    ) {
+      return false;
+    }
+
     const { file_path, content, base_content_sha256 } = params;
     let onDiskContent = '';
     let fileExists = false;
