@@ -100,10 +100,16 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
         .update(onDiskContent)
         .digest('hex');
       if (actualHash !== base_content_sha256) {
+        const latestFileState = await createVersionedFileObject(
+          file_path,
+          onDiskContent,
+          this.sessionStateService,
+        );
         return {
           llmContent: {
             success: false,
             message: 'File content has changed since last read.',
+            latest_file_state: latestFileState,
           },
           returnDisplay: 'Error: File content has changed since last read.',
         };

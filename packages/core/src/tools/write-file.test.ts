@@ -198,6 +198,45 @@ describe('WriteFileTool (TDD)', () => {
     expect(resultObj.success).toBe(false);
   });
 
+  it('should return latest_file_state on hash mismatch', async () => {
+    const filePath = `${rootDir}/existing_file.txt`;
+    const onDiskContent = 'actual content on disk';
+    const newContent = 'content from model';
+    const onDiskHash = 'on-disk-hash';
+    const modelExpectsHash = 'stale-hash';
+
+    mockFs.access.mockResolvedValue(undefined);
+    mockFs.readFile.mockResolvedValue(onDiskContent);
+    // First hash check is for the content on disk
+    mockCrypto.createHash.mockReturnValueOnce({
+      update: vi.fn().mockReturnThis(),
+      digest: vi.fn().mockReturnValue(onDiskHash),
+    } as unknown as crypto.Hash);
+
+    // This is for the createVersionedFileObject call in the error path
+    mockCrypto.createHash.mockReturnValueOnce({
+      update: vi.fn().mockReturnThis(),
+      digest: vi.fn().mockReturnValue(onDiskHash),
+    } as unknown as crypto.Hash);
+
+    const result = await tool.execute(
+      {
+        file_path: filePath,
+        content: newContent,
+        base_content_sha256: modelExpectsHash,
+      },
+      null!,
+    );
+
+    expect(mockFs.writeFile).not.toHaveBeenCalled();
+    const resultObj = result.llmContent as WriteResult;
+    expect(resultObj.success).toBe(false);
+    expect(resultObj.message).toContain('File content has changed');
+    expect(resultObj).toHaveProperty('latest_file_state');
+    expect(resultObj.latest_file_state?.sha256).toBe(onDiskHash);
+    expect(resultObj.latest_file_state?.content).toBe(onDiskContent);
+  });
+
   describe('shouldConfirmExecute', () => {
     it('should return false if the hash check fails', async () => {
       const filePath = `${rootDir}/existing_file.txt`;

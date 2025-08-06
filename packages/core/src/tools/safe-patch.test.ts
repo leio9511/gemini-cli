@@ -259,6 +259,38 @@ describe('SafePatchTool', () => {
     expect(resultJson.message).toContain('Invalid Diff');
   });
 
+  it('should not return latest_file_state when diff is invalid', async () => {
+    const filePath = `${tempRootDir}/test.txt`;
+    const originalContent = 'line 1\n';
+    const unifiedDiff = 'invalid diff';
+    const baseHash = 'original-hash';
+
+    setupMocks({ filePath, originalContent, baseHash });
+    mockedPatchUtils.applyFuzzyPatch.mockImplementation(() => {
+      throw new InvalidDiffError('Invalid Diff');
+    });
+    // This mock is for the failing case that we want to remove
+    mockedCreateVersionedFileObject.mockResolvedValue({
+      file_path: filePath,
+      version: 1,
+      sha256: baseHash,
+      content: originalContent,
+    });
+
+    const params: SafePatchToolParams = {
+      file_path: filePath,
+      unified_diff: unifiedDiff,
+      base_content_sha256: baseHash,
+    };
+
+    const result = await tool.execute(params, abortSignal);
+
+    const resultJson = result.llmContent as PatchResult;
+    expect(resultJson.success).toBe(false);
+    expect(resultJson.message).toContain('Invalid Diff');
+    expect(resultJson).not.toHaveProperty('latest_file_state');
+  });
+
   it('should log failed patches if logSafePatchFailureFolder is set', async () => {
     const failureFolder = `${tempRootDir}/failures`;
     vi.spyOn(mockConfig, 'getLogSafePatchFailureFolder').mockReturnValue(

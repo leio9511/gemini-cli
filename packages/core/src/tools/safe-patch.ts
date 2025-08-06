@@ -142,12 +142,13 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
           await fs.writeFile(sourcePath, originalContent);
           await fs.writeFile(diffPath, unified_diff);
         }
-        return this._createFailureResult(
-          (e as Error).message,
-          'Invalid Diff',
-          file_path,
-          originalContent,
-        );
+        return {
+          llmContent: {
+            success: false,
+            message: (e as Error).message,
+          },
+          returnDisplay: 'Invalid Diff',
+        };
       }
       throw e; // Re-throw unexpected errors
     }
