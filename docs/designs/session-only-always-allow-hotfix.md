@@ -1,8 +1,9 @@
 ### **TDD Plan: Implementing Shared Session-Only "Always Allow" for File Modification Tools**
 
-**Status:** Proposal
+**Status:** DONE
 **Author:** gemini-agent
 **Date:** August 5, 2025
+**Commit:** ba94a6a09ca05d3c8911c3facbfa797c5798619f
 
 ---
 

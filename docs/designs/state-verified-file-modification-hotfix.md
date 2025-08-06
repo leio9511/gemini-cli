@@ -1,8 +1,9 @@
 ## **Hotfix Plan: Restoring Confirmation and UI for File Modification Tools**
 
-**Status:** Proposal
+**Status:** DONE
 **Author:** gemini-agent
 **Date:** August 5, 2025
+**Commit:** 81107c2796187c62009c9e1d96b469fccca41b85
 
 ### 1. Abstract
 

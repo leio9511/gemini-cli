@@ -1,8 +1,9 @@
 ## **Design Proposal: A Robust, State-Verified File Modification Toolchain**
 
-**Status:** Proposal
+**Status:** DONE
 **Author:** lychen@google.com
 **Date:** August 3, 2025
+**Commit:** ff1b536ed01dbb28d473b1ea2e6579a63f7fc689
 
 ### 1. Abstract
 

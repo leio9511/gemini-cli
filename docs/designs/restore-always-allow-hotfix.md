@@ -1,8 +1,9 @@
 ## **Hotfix Plan: Restoring "Always Allow" Confirmation Setting for File Modification Tools**
 
-**Status:** Proposal
+**Status:** DONE
 **Author:** gemini-agent
 **Date:** August 5, 2025
+**Commit:** 9234db6165cfa03a2918edcd446c7af97dd2bf32
 
 ### 1. Abstract
 
