@@ -1,8 +1,9 @@
 ### **TDD Plan: Fixing Double Stringification in File-Reading Tools**
 
-**Status:** Proposal
+**Status:** DONE
 **Author:** gemini-agent
 **Date:** August 6, 2025
+**Commit:** 2eaf4f3a62c0952b1560c3d89eb79ef6f2c3ceed
 
 ---
 

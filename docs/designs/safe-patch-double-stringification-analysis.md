@@ -39,3 +39,6 @@ The path forward involves fixing the data representation issue before it reaches
 - **Solution 4: Custom Plain Text Formatting:** This involves `read_file` returning a single, formatted plain text string that includes both the metadata (version, sha256) and the raw file content, using a custom delimiter. This avoids double-stringification while keeping the necessary information in the LLM's context.
 
 The next step is to perform a deep-dive analysis into the feasibility, required changes, and pros/cons of both Solution 1 and Solution 4 to determine the most elegant and maintainable path forward. This will involve investigating the core SDK and application "glue" code to understand the implementation complexity of each approach.
+
+---
+**Update (August 6, 2025):** Solution 1 (Structured `functionResponse`) was chosen and implemented. See commit `2eaf4f3a62c0952b1560c3d89eb79ef6f2c3ceed` for details.
