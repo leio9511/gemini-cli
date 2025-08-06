@@ -463,6 +463,7 @@ export function useCompletion(
         cwd: searchDir,
         dot: searchPrefix.startsWith('.'),
         nocase: true,
+        mark: true,
       });
 
       const suggestions: Suggestion[] = files

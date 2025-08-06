@@ -35,6 +35,17 @@ const mockSessionStateService = {
   getNextVersion: vi.fn(),
 } as unknown as Mocked<SessionStateService>;
 
+interface WriteResult {
+  success: boolean;
+  message: string;
+  latest_file_state?: {
+    file_path: string;
+    version: number;
+    sha256: string;
+    content: string;
+  };
+}
+
 describe('WriteFileTool (TDD)', () => {
   let tool: WriteFileTool;
   const mockHash = 'mocked-sha256-hash';
@@ -58,8 +69,8 @@ describe('WriteFileTool (TDD)', () => {
       mockHashUpdate as unknown as crypto.Hash,
     );
 
-    mockFileUtils.createVersionedFileObjectFromContent.mockImplementation(
-      async (filePath, sessionState, content) => ({
+    mockFileUtils.createVersionedFileObject.mockImplementation(
+      async (filePath, content, sessionState) => ({
         file_path: filePath,
         version: sessionState.getNextVersion(),
         sha256: crypto.createHash('sha256').update(content).digest('hex'),
@@ -78,7 +89,7 @@ describe('WriteFileTool (TDD)', () => {
     const result = await tool.execute({ file_path: filePath, content }, null!);
 
     expect(mockFs.writeFile).toHaveBeenCalledWith(filePath, content);
-    const resultObj = JSON.parse(result.llmContent as string);
+    const resultObj = result.llmContent as WriteResult;
 
     expect(resultObj.success).toBe(true);
     expect(resultObj.message).toContain('File created successfully');
@@ -123,7 +134,7 @@ describe('WriteFileTool (TDD)', () => {
     );
 
     expect(mockFs.writeFile).toHaveBeenCalledWith(filePath, newContent);
-    const resultObj = JSON.parse(result.llmContent as string);
+    const resultObj = result.llmContent as WriteResult;
 
     expect(resultObj.success).toBe(true);
     expect(resultObj.message).toContain('File overwritten successfully');
@@ -155,7 +166,7 @@ describe('WriteFileTool (TDD)', () => {
     );
 
     expect(mockFs.writeFile).not.toHaveBeenCalled();
-    const resultObj = JSON.parse(result.llmContent as string);
+    const resultObj = result.llmContent as WriteResult;
     expect(resultObj.success).toBe(false);
   });
 
@@ -183,7 +194,7 @@ describe('WriteFileTool (TDD)', () => {
     );
 
     expect(mockFs.writeFile).not.toHaveBeenCalled();
-    const resultObj = JSON.parse(result.llmContent as string);
+    const resultObj = result.llmContent as WriteResult;
     expect(resultObj.success).toBe(false);
   });
 

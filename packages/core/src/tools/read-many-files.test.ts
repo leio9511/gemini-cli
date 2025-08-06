@@ -184,9 +184,15 @@ describe('ReadManyFilesTool', () => {
       };
 
       mockCreateVersionedFileObject.mockImplementation(
-        async (filePath: string) => {
-          if (filePath.endsWith('file.txt')) return mockFile1;
-          if (filePath.endsWith('another.txt')) return mockFile2;
+        async (filePath: string, content: string) => {
+          if (filePath.endsWith('file.txt')) {
+            expect(content).toBe('Text file');
+            return mockFile1;
+          }
+          if (filePath.endsWith('another.txt')) {
+            expect(content).toBe('Another text');
+            return mockFile2;
+          }
           return null;
         },
       );
@@ -194,9 +200,9 @@ describe('ReadManyFilesTool', () => {
       const params = { paths: ['*.txt'] };
       const result = await tool.execute(params, new AbortController().signal);
 
-      const sortedLlmContent = (
-        JSON.parse(result.llmContent as string) as VersionedFile[]
-      ).sort((a, b) => a.file_path.localeCompare(b.file_path));
+      const sortedLlmContent = (result.llmContent as VersionedFile[]).sort(
+        (a, b) => a.file_path.localeCompare(b.file_path),
+      );
       const sortedMockContent = [mockFile1, mockFile2].sort((a, b) =>
         a.file_path.localeCompare(b.file_path),
       );
@@ -224,9 +230,10 @@ describe('ReadManyFilesTool', () => {
       expect(mockCreateVersionedFileObject).toHaveBeenCalledTimes(1);
       expect(mockCreateVersionedFileObject).toHaveBeenCalledWith(
         path.join(tempRootDir, 'src/main.ts'),
+        'Main content',
         sessionStateService,
       );
-      expect(JSON.parse(result.llmContent as string)).toEqual([mockFile]);
+      expect(result.llmContent).toEqual([mockFile]);
     });
 
     it('should return a message when no files are found', async () => {
@@ -253,8 +260,9 @@ describe('ReadManyFilesTool', () => {
         content: 'Good content',
       };
       mockCreateVersionedFileObject.mockImplementation(
-        async (filePath: string) => {
+        async (filePath: string, content: string) => {
           if (filePath.endsWith('good.txt')) {
+            expect(content).toBe('Good content');
             return mockGoodFile;
           }
           if (filePath.endsWith('bad.txt')) {
@@ -269,7 +277,7 @@ describe('ReadManyFilesTool', () => {
       const result = await tool.execute(params, new AbortController().signal);
 
       expect(mockCreateVersionedFileObject).toHaveBeenCalledTimes(2);
-      expect(JSON.parse(result.llmContent as string)).toEqual([mockGoodFile]);
+      expect(result.llmContent).toEqual([mockGoodFile]);
       expect(result.returnDisplay).toContain(
         'Successfully read and processed **1 file(s)**',
       );

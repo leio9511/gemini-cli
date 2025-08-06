@@ -575,6 +575,7 @@ describe('createVersionedFileObject', () => {
 
     const result = await createVersionedFileObject(
       filePath,
+      content,
       sessionStateService,
     );
 
@@ -597,6 +598,7 @@ describe('createVersionedFileObject', () => {
 
     const result = await createVersionedFileObject(
       filePath,
+      content,
       sessionStateService,
     );
 

@@ -22,7 +22,6 @@ import {
   ToolErrorType,
 } from '../index.js';
 import { Part, PartListUnion } from '@google/genai';
-import { getResponseTextFromParts } from '../utils/generateContentResponseUtilities.js';
 import {
   isModifiableTool,
   ModifyContext,
@@ -127,13 +126,13 @@ export type ToolCallsUpdateHandler = (toolCalls: ToolCall[]) => void;
 function createFunctionResponsePart(
   callId: string,
   toolName: string,
-  output: string,
+  response: Record<string, unknown>,
 ): Part {
   return {
     functionResponse: {
       id: callId,
       name: toolName,
-      response: { output },
+      response,
     },
   };
 }
@@ -141,62 +140,102 @@ function createFunctionResponsePart(
 export function convertToFunctionResponse(
   toolName: string,
   callId: string,
-  llmContent: PartListUnion,
+  llmContent: PartListUnion | object,
 ): PartListUnion {
+  // New case: Handle structured object from a tool.
+  // This is the new case: a structured object from a tool.
+  if (
+    typeof llmContent === 'object' &&
+    llmContent !== null &&
+    !Array.isArray(llmContent) &&
+    Object.keys(llmContent).length > 0 &&
+    !('text' in llmContent) &&
+    !('inlineData' in llmContent) &&
+    !('fileData' in llmContent) &&
+    !('functionResponse' in llmContent) &&
+    !('functionCall' in llmContent)
+  ) {
+    return createFunctionResponsePart(
+      callId,
+      toolName,
+      llmContent as Record<string, unknown>,
+    );
+  }
+
   const contentToProcess =
     Array.isArray(llmContent) && llmContent.length === 1
       ? llmContent[0]
       : llmContent;
 
+  // Legacy case: Wrap raw string output.
   if (typeof contentToProcess === 'string') {
-    return createFunctionResponsePart(callId, toolName, contentToProcess);
+    return createFunctionResponsePart(callId, toolName, {
+      output: contentToProcess,
+    });
   }
 
   if (Array.isArray(contentToProcess)) {
-    const functionResponse = createFunctionResponsePart(
-      callId,
-      toolName,
-      'Tool execution succeeded.',
-    );
+    // Handle array of objects from read_many_files.
+    // This is the case for read_many_files, which returns an array of VersionedFile objects.
+    // We need to wrap the entire array into a single functionResponse.
+    if (
+      contentToProcess.every(
+        (item) =>
+          typeof item === 'object' &&
+          item !== null &&
+          !('text' in item) &&
+          !('inlineData' in item) &&
+          !('fileData' in item) &&
+          !('functionResponse' in item) &&
+          !('functionCall' in item),
+      )
+    ) {
+      return createFunctionResponsePart(callId, toolName, {
+        files: contentToProcess,
+      });
+    }
+
+    const functionResponse = createFunctionResponsePart(callId, toolName, {
+      output: 'Tool execution succeeded.',
+    });
     return [functionResponse, ...contentToProcess];
   }
 
   // After this point, contentToProcess is a single Part object.
-  if (contentToProcess.functionResponse) {
-    if (contentToProcess.functionResponse.response?.content) {
-      const stringifiedOutput =
-        getResponseTextFromParts(
-          contentToProcess.functionResponse.response.content as Part[],
-        ) || '';
-      return createFunctionResponsePart(callId, toolName, stringifiedOutput);
-    }
+  if (
+    'functionResponse' in contentToProcess &&
+    contentToProcess.functionResponse
+  ) {
     // It's a functionResponse that we should pass through as is.
     return contentToProcess;
   }
 
-  if (contentToProcess.inlineData || contentToProcess.fileData) {
+  if (
+    'inlineData' in contentToProcess ||
+    ('fileData' in contentToProcess && contentToProcess.fileData)
+  ) {
     const mimeType =
-      contentToProcess.inlineData?.mimeType ||
-      contentToProcess.fileData?.mimeType ||
+      ('inlineData' in contentToProcess &&
+        (contentToProcess.inlineData as { mimeType: string })?.mimeType) ||
+      ('fileData' in contentToProcess &&
+        (contentToProcess.fileData as { mimeType: string })?.mimeType) ||
       'unknown';
-    const functionResponse = createFunctionResponsePart(
-      callId,
-      toolName,
-      `Binary content of type ${mimeType} was processed.`,
-    );
+    const functionResponse = createFunctionResponsePart(callId, toolName, {
+      output: `Binary content of type ${mimeType} was processed.`,
+    });
     return [functionResponse, contentToProcess];
   }
 
-  if (contentToProcess.text !== undefined) {
-    return createFunctionResponsePart(callId, toolName, contentToProcess.text);
+  if ('text' in contentToProcess && contentToProcess.text) {
+    return createFunctionResponsePart(callId, toolName, {
+      output: (contentToProcess as { text: string }).text,
+    });
   }
 
   // Default case for other kinds of parts.
-  return createFunctionResponsePart(
-    callId,
-    toolName,
-    'Tool execution succeeded.',
-  );
+  return createFunctionResponsePart(callId, toolName, {
+    output: 'Tool execution succeeded.',
+  });
 }
 
 const createErrorResponse = (
@@ -206,13 +245,9 @@ const createErrorResponse = (
 ): ToolCallResponseInfo => ({
   callId: request.callId,
   error,
-  responseParts: {
-    functionResponse: {
-      id: request.callId,
-      name: request.name,
-      response: { error: error.message },
-    },
-  },
+  responseParts: createFunctionResponsePart(request.callId, request.name, {
+    error: error.message,
+  }),
   resultDisplay: error.message,
   errorType,
 });

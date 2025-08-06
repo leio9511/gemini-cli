@@ -387,15 +387,13 @@ describe('convertToFunctionResponse', () => {
   it('should handle llmContent as an empty array', () => {
     const llmContent: PartListUnion = [];
     const result = convertToFunctionResponse(toolName, callId, llmContent);
-    expect(result).toEqual([
-      {
-        functionResponse: {
-          name: toolName,
-          id: callId,
-          response: { output: 'Tool execution succeeded.' },
-        },
+    expect(result).toEqual({
+      functionResponse: {
+        name: toolName,
+        id: callId,
+        response: { files: [] },
       },
-    ]);
+    });
   });
 
   it('should handle llmContent as a Part with undefined inlineData/fileData/text', () => {

@@ -17,7 +17,7 @@ import { SessionStateService } from '../services/session-state-service.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { createVersionedFileObjectFromContent } from '../utils/fileUtils.js';
+import { createVersionedFileObject } from '../utils/fileUtils.js';
 import { Schema, Type } from '@google/genai';
 import { applyFuzzyPatch } from '../utils/patchUtils.js';
 import { InvalidDiffError } from '../errors.js';
@@ -67,21 +67,17 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
     filePath: string,
     content: string,
   ): Promise<ToolResult> {
-    const latestFileState = await createVersionedFileObjectFromContent(
+    const latestFileState = await createVersionedFileObject(
       filePath,
-      this.sessionStateService,
       content,
+      this.sessionStateService,
     );
     return {
-      llmContent: JSON.stringify(
-        {
-          success: false,
-          message,
-          latest_file_state: latestFileState,
-        },
-        null,
-        2,
-      ),
+      llmContent: {
+        success: false,
+        message,
+        latest_file_state: latestFileState,
+      },
       returnDisplay: display,
     };
   }
@@ -158,22 +154,18 @@ export class SafePatchTool extends BaseTool<SafePatchToolParams, ToolResult> {
 
     await fs.writeFile(file_path, newContent);
 
-    const latestFileState = await createVersionedFileObjectFromContent(
+    const latestFileState = await createVersionedFileObject(
       file_path,
-      this.sessionStateService,
       newContent,
+      this.sessionStateService,
     );
 
     return {
-      llmContent: JSON.stringify(
-        {
-          success: true,
-          message: 'Patch applied successfully.',
-          latest_file_state: latestFileState,
-        },
-        null,
-        2,
-      ),
+      llmContent: {
+        success: true,
+        message: 'Patch applied successfully.',
+        latest_file_state: latestFileState,
+      },
       returnDisplay: {
         type: 'edit',
         fileName: file_path,

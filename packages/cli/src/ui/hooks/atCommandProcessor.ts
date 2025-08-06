@@ -417,30 +417,24 @@ export async function handleAtCommand({
       confirmationDetails: undefined,
     };
 
-    if (result.llmContent && typeof result.llmContent === 'string') {
-      try {
-        const versionedFiles = JSON.parse(result.llmContent);
-        if (Array.isArray(versionedFiles) && versionedFiles.length > 0) {
-          processedQueryParts.push({
-            text: '\n--- Content from referenced files ---',
-          });
-          for (const file of versionedFiles) {
-            processedQueryParts.push({
-              text: `\nContent from @${file.file_path}:\n`,
-            });
-            // Pass the whole versioned object to the model
-            processedQueryParts.push({ text: JSON.stringify(file, null, 2) });
-          }
-          processedQueryParts.push({ text: '\n--- End of content ---' });
-        }
-      } catch (e) {
-        onDebugMessage(
-          `Error parsing read_many_files output: ${getErrorMessage(e)}`,
-        );
+    if (Array.isArray(result.llmContent)) {
+      const versionedFiles = result.llmContent;
+      if (versionedFiles.length > 0) {
+        processedQueryParts.push({
+          text: '\n--- Content from referenced files ---',
+        });
+        processedQueryParts.push({
+          functionResponse: {
+            name: 'read_many_files',
+            // This is not a real tool call, so the ID is arbitrary.
+            id: `at-command-processor-${userMessageTimestamp}`,
+            response: {
+              files: versionedFiles,
+            },
+          },
+        });
+        processedQueryParts.push({ text: '\n--- End of content ---' });
       }
-    } else if (Array.isArray(result.llmContent)) {
-      // Legacy handling for non-text files, can be removed when all content is versioned
-      processedQueryParts.push(...result.llmContent);
     } else {
       onDebugMessage(
         'read_many_files tool returned no content or empty content.',

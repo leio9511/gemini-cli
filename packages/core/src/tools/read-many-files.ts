@@ -339,6 +339,7 @@ ${getErrorMessage(error)}
         if (typeof processedFile.llmContent === 'string') {
           const versionedFile = await createVersionedFileObject(
             filePath,
+            processedFile.llmContent,
             sessionStateService,
           );
           contentParts.push(versionedFile);
@@ -433,7 +434,7 @@ ${p}
     }
 
     return {
-      llmContent: JSON.stringify(contentParts, null, 2),
+      llmContent: contentParts,
       returnDisplay: displayMessage.trim(),
     };
   }

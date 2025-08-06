@@ -19,7 +19,7 @@ import {
 } from './tools.js';
 import { Schema, Type } from '@google/genai';
 import { SessionStateService } from '../services/session-state-service.js';
-import { createVersionedFileObjectFromContent } from '../utils/fileUtils.js';
+import { createVersionedFileObject } from '../utils/fileUtils.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { DEFAULT_DIFF_OPTIONS } from './diffOptions.js';
 
@@ -87,10 +87,10 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
     if (fileExists) {
       if (!base_content_sha256) {
         return {
-          llmContent: JSON.stringify({
+          llmContent: {
             success: false,
             message: 'File exists, but no hash was provided.',
-          }),
+          },
           returnDisplay: 'Error: File exists, but no hash was provided.',
         };
       }
@@ -101,10 +101,10 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
         .digest('hex');
       if (actualHash !== base_content_sha256) {
         return {
-          llmContent: JSON.stringify({
+          llmContent: {
             success: false,
             message: 'File content has changed since last read.',
-          }),
+          },
           returnDisplay: 'Error: File content has changed since last read.',
         };
       }
@@ -112,23 +112,19 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
 
     try {
       await fs.writeFile(file_path, content);
-      const latestFileState = await createVersionedFileObjectFromContent(
+      const latestFileState = await createVersionedFileObject(
         file_path,
-        this.sessionStateService,
         content,
+        this.sessionStateService,
       );
       return {
-        llmContent: JSON.stringify(
-          {
-            success: true,
-            message: fileExists
-              ? 'File overwritten successfully.'
-              : 'File created successfully.',
-            latest_file_state: latestFileState,
-          },
-          null,
-          2,
-        ),
+        llmContent: {
+          success: true,
+          message: fileExists
+            ? 'File overwritten successfully.'
+            : 'File created successfully.',
+          latest_file_state: latestFileState,
+        },
         returnDisplay: {
           type: 'edit',
           fileName: file_path,
@@ -139,10 +135,10 @@ export class WriteFileTool extends BaseTool<WriteFileToolParams, ToolResult> {
       };
     } catch (e) {
       return {
-        llmContent: JSON.stringify({
+        llmContent: {
           success: false,
           message: getErrorMessage(e),
-        }),
+        },
         returnDisplay: `Error: ${getErrorMessage(e)}`,
       };
     }

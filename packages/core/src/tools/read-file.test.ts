@@ -158,11 +158,12 @@ describe('ReadFileTool', () => {
       expect(mockedCreateVersionedFileObject).toHaveBeenCalledTimes(1);
       expect(mockedCreateVersionedFileObject).toHaveBeenCalledWith(
         filePath,
+        fileContent,
         mockSessionStateService,
       );
 
       expect(result).toEqual({
-        llmContent: JSON.stringify(mockVersionedFile, null, 2),
+        llmContent: mockVersionedFile,
         returnDisplay: `Read and versioned ${filePath}`,
       });
     });

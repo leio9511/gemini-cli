@@ -154,10 +154,11 @@ export class ReadFileTool extends BaseTool<ReadFileToolParams, ToolResult> {
     if (typeof processedFile.llmContent === 'string') {
       const versionedFile = await createVersionedFileObject(
         params.absolute_path,
+        processedFile.llmContent,
         this.sessionStateService,
       );
       return {
-        llmContent: JSON.stringify(versionedFile, null, 2),
+        llmContent: versionedFile,
         returnDisplay: `Read and versioned ${params.absolute_path}`,
       };
     }

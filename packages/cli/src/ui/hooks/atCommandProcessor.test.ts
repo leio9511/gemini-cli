@@ -12,12 +12,14 @@ import {
   GlobTool,
   ReadManyFilesTool,
   ToolRegistry,
+  VersionedFile,
 } from '@google/gemini-cli-core';
 import * as os from 'os';
 import { ToolCallStatus } from '../types.js';
 import { UseHistoryManagerReturn } from './useHistoryManager.js';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
+import { Part } from '@google/genai';
 
 describe('handleAtCommand', () => {
   let testRootDir: string;
@@ -141,7 +143,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual(fileContent);
     expect(resultJson.file_path).toEqual(filePath);
 
@@ -177,7 +184,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual(fileContent);
     expect(resultJson.file_path).toEqual(filePath);
 
@@ -209,7 +221,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual(fileContent);
     expect(resultJson.file_path).toEqual(filePath);
 
@@ -237,7 +254,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual(fileContent);
     expect(resultJson.file_path).toEqual(filePath);
 
@@ -276,13 +298,17 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson1 = JSON.parse(result.processedQuery[3].text);
-    expect(resultJson1.content).toEqual(content1);
-    expect(resultJson1.file_path).toEqual(file1Path);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const files = response.files;
+    const resultJson1 = files.find((f) => f.file_path === file1Path);
+    const resultJson2 = files.find((f) => f.file_path === file2Path);
 
-    const resultJson2 = JSON.parse(result.processedQuery[5].text);
+    expect(resultJson1.content).toEqual(content1);
     expect(resultJson2.content).toEqual(content2);
-    expect(resultJson2.file_path).toEqual(file2Path);
   });
 
   it('should handle multiple @file references with interleaved text', async () => {
@@ -310,13 +336,17 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson1 = JSON.parse(result.processedQuery[3].text);
-    expect(resultJson1.content).toEqual(content1);
-    expect(resultJson1.file_path).toEqual(file1Path);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const files = response.files;
+    const resultJson1 = files.find((f) => f.file_path === file1Path);
+    const resultJson2 = files.find((f) => f.file_path === file2Path);
 
-    const resultJson2 = JSON.parse(result.processedQuery[5].text);
+    expect(resultJson1.content).toEqual(content1);
     expect(resultJson2.content).toEqual(content2);
-    expect(resultJson2.file_path).toEqual(file2Path);
   });
 
   it('should handle a mix of valid, invalid, and lone @ references', async () => {
@@ -342,13 +372,17 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson1 = JSON.parse(result.processedQuery[3].text);
-    expect(resultJson1.content).toEqual(content2);
-    expect(resultJson1.file_path).toEqual(file2Path);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const files = response.files;
+    const resultJson1 = files.find((f) => f.file_path === file1Path);
+    const resultJson2 = files.find((f) => f.file_path === file2Path);
 
-    const resultJson2 = JSON.parse(result.processedQuery[5].text);
-    expect(resultJson2.content).toEqual(content1);
-    expect(resultJson2.file_path).toEqual(file1Path);
+    expect(resultJson1.content).toEqual(content1);
+    expect(resultJson2.content).toEqual(content2);
 
     expect(mockOnDebugMessage).toHaveBeenCalledWith(
       `Path ${invalidFile} not found directly, attempting glob search.`,
@@ -440,7 +474,12 @@ describe('handleAtCommand', () => {
         signal: abortController.signal,
       });
 
-      const resultJson = JSON.parse(result.processedQuery[3].text);
+      const functionResponsePart = result.processedQuery[2] as Part;
+      expect(functionResponsePart.functionResponse).toBeDefined();
+      const response = functionResponsePart.functionResponse.response as {
+        files: VersionedFile[];
+      };
+      const resultJson = response.files[0];
       expect(resultJson.content).toEqual('console.log("Hello world");');
       expect(resultJson.file_path).toEqual(validFile);
     });
@@ -466,7 +505,12 @@ describe('handleAtCommand', () => {
         signal: abortController.signal,
       });
 
-      const resultJson = JSON.parse(result.processedQuery[3].text);
+      const functionResponsePart = result.processedQuery[2] as Part;
+      expect(functionResponsePart.functionResponse).toBeDefined();
+      const response = functionResponsePart.functionResponse.response as {
+        files: VersionedFile[];
+      };
+      const resultJson = response.files[0];
       expect(resultJson.content).toEqual('# Project README');
       expect(resultJson.file_path).toEqual(validFile);
 
@@ -586,7 +630,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual('console.log("Hello world");');
     expect(resultJson.file_path).toEqual(validFile);
   });
@@ -615,7 +664,12 @@ describe('handleAtCommand', () => {
       signal: abortController.signal,
     });
 
-    const resultJson = JSON.parse(result.processedQuery[3].text);
+    const functionResponsePart = result.processedQuery[2] as Part;
+    expect(functionResponsePart.functionResponse).toBeDefined();
+    const response = functionResponsePart.functionResponse.response as {
+      files: VersionedFile[];
+    };
+    const resultJson = response.files[0];
     expect(resultJson.content).toEqual('// Main application entry');
     expect(resultJson.file_path).toEqual(validFile);
 
