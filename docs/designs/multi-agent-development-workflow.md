@@ -69,7 +69,7 @@ my-project/
 
 ### The PR Delivery Cycle
 
-***This entire Phase 1-2-3 cycle repeats for each `Pull Request #[Number]` defined in the master plan.***
+***This entire Phase 1-3 cycle repeats for each `Pull Request #[Number]` defined in the master plan.***
 
 #### Phase 1: The Build Cycle (Implementation)
 
@@ -90,27 +90,50 @@ my-project/
 *   **Actions:**
     1.  **Review Goal:** The `Code Review Agent` reads `ACTIVE_PR.md` to understand what was supposed to be built.
     2.  **Analyze Code:** It runs `git diff main...HEAD` to see the cumulative result of all the `SWE Agent`'s work for this PR.
-    3.  **Provide Feedback:** It writes its findings into a `REVIEW_COMMENTS.md` file. If the work is perfect, it writes `LGTM`.
+    3.  **Provide Feedback:** It writes its findings into a `REVIEW_COMMENTS.md` file in a structured JSON format. Approval is an empty `findings` array.
     4.  **Address Feedback:** The `SWE Agent` checks the `REVIEW_COMMENTS.md` file.
-        *   If `LGTM`: The loop is over. The process moves to Phase 3.
+        *   If the `findings` array in the JSON is empty: The loop is over. The process moves to Phase 3.
         *   If comments exist: The `SWE Agent` reads the feedback, makes the necessary code changes, and commits them with `git commit -am "fix: Address review comments"`. The process then loops back to step 1 of this phase for another review.
 *   **Output:** An approved set of changes on the local feature branch.
 
 #### Phase 3: The Finalization (Merge Preparation)
 
 *   **Agent:** `SWE Agent`
-*   **Input:** The approved feature branch with its history of micro-commits.
+*   **Input:** The approved feature branch, and the master `[feature-name].plan.md`.
 *   **Actions:**
     1.  **Squash History:** The agent runs `git reset --soft $(git merge-base HEAD main)` to combine all incremental TDD and fix-up commits into a single, staged change.
     2.  **Create Final Commit:** It creates one clean, final commit using the title from `ACTIVE_PR.md`: `git commit -m "feat: [PR Title]"`.
-    3.  **Cleanup:** It deletes the `ACTIVE_PR.md` and `REVIEW_COMMENTS.md` files.
+    3.  **Update Plan:** It finds the corresponding PR in the master plan file and marks it as `[DONE]`, appending the final commit hash.
+    4.  **Cleanup:** It deletes the `ACTIVE_PR.md` and `REVIEW_COMMENTS.md` files.
 *   **Output:** A clean local feature branch with a single, well-documented, and fully reviewed commit.
 
 ---
 
-### Final Result
+### Phase 4: The Handoff (Human-in-the-Loop)
 
-The output of each PR Delivery Cycle is a local feature branch that is ready to be pushed to the remote repository. A human developer then opens a formal Pull Request from this branch into `main`. After passing the project's official CI pipeline and receiving final human approval, the PR is merged. This process repeats for every PR in the plan, ensuring continuous integration and a healthy `main` branch.
+The output of each PR Delivery Cycle is a local feature branch that is ready to be pushed to the remote repository. The responsibility for pushing the branch, opening the formal Pull Request, and merging into `main` is deliberately left to a human developer or a future, higher-privilege Orchestrator Agent.
+
+#### Why the SWE Agent Does Not Merge to `main`
+
+This separation of duties is a critical safety feature. The `SWE Agent`'s role is to automate the complex development and review work, but the final act of merging is a protected action for several reasons:
+
+1.  **CI/CD as the Final Gatekeeper:** Most projects run an essential suite of tests, builds, and security scans on the Pull Request itself. The agent merging locally would bypass this authoritative quality gate.
+2.  **Final Human Sanity Check:** The `main` branch is the project's source of truth. Allowing a human to perform a final review of the PR and its CI results provides a crucial safety net against unforeseen issues.
+3.  **Merge Conflict Resolution:** While rare, complex merge conflicts require human intelligence to resolve correctly. The PR process is the correct forum for handling these situations.
+4.  **Security and Permissions:** Granting an automated agent direct merge access to `main` is a significant security risk. The current model is more secure, requiring the agent only to have permissions to push to feature branches.
+
+#### Handoff and Merge Process
+
+*   **Responsibility:** Human Developer or future Orchestrator Agent.
+*   **Actions:**
+    1.  Push the finalized feature branch to the remote repository (e.g., `git push origin feature/pr-1-add-caching-service`).
+    2.  Open a formal Pull Request in the Git hosting platform (e.g., GitHub).
+    3.  Monitor the CI pipeline for a successful run.
+    4.  Perform a final review.
+    5.  Merge the Pull Request into the `main` branch.
+    6.  Delete the remote feature branch.
+
+This process repeats for every PR in the plan, ensuring continuous integration and a healthy `main` branch.
 
 ---
 
@@ -122,9 +145,10 @@ The Orchestrator is not a specialist; it is the **process manager** or "assembly
 
 1.  **State Management:** Reading the master plan to determine which PR is next.
 2.  **Agent Invocation:** Calling the correct specialist agent (`Plan`, `SWE`, or `Code Review`) at the appropriate time with the correct persona prompt.
-3.  **State Transition:** Checking the output of one phase to decide which agent to call next (e.g., reading `REVIEW_COMMENTS.md` to see if it contains `LGTM`).
+3.  **State Transition:** Checking the output of one phase to decide which agent to call next (e.g., parsing `REVIEW_COMMENTS.md` to check if the `findings` array is empty).
 4.  **Loop Management:** Managing the review/refinement loop between the `SWE Agent` and `Code Review Agent`.
 5.  **Error Handling:** Pausing the workflow and flagging for human intervention if a step fails repeatedly.
+6.  **Plan Completion:** After a PR is successfully finalized by the `SWE Agent`, the Orchestrator checks the master plan for any remaining PRs. If none are left, it updates the plan document to mark the entire feature as completed and performs any final cleanup.
+7.  **(Optional) Automated Handoff:** A future Orchestrator with higher privileges could be tasked with the "Handoff" phase, including pushing branches and creating PRs.
 
 The implementation of this Orchestrator is the next logical step to fully automate this development system.
-

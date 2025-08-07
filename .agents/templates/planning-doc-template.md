@@ -79,6 +79,8 @@ Your goal is to create a robust, step-by-step implementation plan that minimizes
 3.  **Keep Pull Requests Small and Focused:** A PR should represent a single, logical unit of work and ideally be under 500 lines of code change. This reduces risk, makes code reviews faster and more effective, and makes it easier to find bugs. If a task seems too large, break it down into smaller, prerequisite PRs.
 
 4.  **Define a Clear Verification Plan for Each PR:** For each PR, specify exactly how the changes can be tested and verified. This is the "definition of done" for the PR and is critical for the Code Review Agent. It should include specific test commands to run.
+
+5.  **Define Clear Task Exit Criteria:** Each "Task" listed under a PR must represent a complete, atomic unit of work that concludes in a "Green" state, signified by a successful `npm run preflight` command. A Task is only done when all tests pass, the code builds, and it meets all linting and type-checking standards. Do not create Tasks that end in a failing state.
 -->
 
 ---
