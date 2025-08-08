@@ -17,10 +17,11 @@ if [ ! -s "$DIFF_FILE" ]; then
 fi
 
 
+
 # 3. Define the prompt for the Code Review Agent.
 #    The agent's persona and main instructions are loaded from the settings file.
-#    This prompt provides the immediate task, telling the agent which files to use.
-PROMPT="Please review the code changes. The specification is in @${SPEC_FILE} and the diff is in @${DIFF_FILE}."
+#    This prompt invokes the agent's `perform_code_review` capability.
+PROMPT="perform_code_review(spec_file='@${SPEC_FILE}', diff_file='@${DIFF_FILE}')"
 
 # 4. Run the Code Review Agent and capture its JSON output.
 #    Temporarily set the default settings to the review agent's settings.
