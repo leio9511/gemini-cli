@@ -81,7 +81,7 @@ my-project/
     3.  **Create Work Order:** Creates the `ACTIVE_PR.md` file from the `pr_template.md`. It populates this file by copying the `PR Title`, `Summary`, `Verification Plan`, and the full list of `Planned Implementation Tasks` from the plan. This `ACTIVE_PR.md` is now the single source of truth for the current work cycle.
     4.  **Execute TDD Cycles:** For each `Task` listed in `ACTIVE_PR.md`, the agent performs the full Red-Green-Refactor cycle.
     5.  **Create Safety Checkpoint:** After each successful TDD cycle, the agent MUST run the full preflight check (e.g., `npm run preflight`) to ensure all tests pass, there are no type errors, and the code is linted. Once the preflight check is green, the agent creates a local micro-commit: `git add .` followed by `git commit -m "TDD: Implemented [task name]"`. This provides a safe rollback point.
-*   **Output & Handoff:** A local feature branch with a series of small, incremental commits is created. The `SWE Agent`'s role is now paused. It MUST wait for the `Code Review Agent` to complete its review before proceeding. The process now moves to Phase 2.
+*   **Handoff via Tool:** After all tasks are complete, the `SWE Agent`'s final action is to call a `request_code_review()` tool. This tool's purpose is to signal to the Orchestrator that the implementation is ready for review. This is a blocking action that reliably ends the agent's turn.
 
 #### Phase 2: The Verification Cycle (Review & Refinement)
 
@@ -94,7 +94,7 @@ my-project/
     4.  **Address Feedback:** The `SWE Agent` checks the `REVIEW_COMMENTS.md` file.
         *   If the `findings` array in the JSON is empty: The loop is over. The process moves to Phase 3.
         *   If comments exist: The `SWE Agent` reads the feedback, makes the necessary code changes, and commits them with `git commit -am "fix: Address review comments"`. The process then loops back to step 1 of this phase for another review.
-*   **Output:** An approved set of changes on the local feature branch.
+*   **Output:** An approved set of changes on the local feature branch, or a new call to `request_code_review()` after fixes are committed.
 
 #### Phase 3: The Finalization (Merge Preparation)
 
@@ -179,9 +179,24 @@ This leads to three foundational design principles:
 
 3.  **Failure is a Signal About Scope, Not Just the Agent.** When an agent fails to reach its verifiable goal, it should not be seen merely as a flaw in the agent's reasoning. It is a fundamental signal that the goal itself was likely too large, complex, or ambiguous for a single, verifiable step. The system's response should be to **reduce the scope** and provide the agent with a smaller, more manageable, and still verifiable goal.
 
+
 #### Application in This Workflow
 
-This philosophy dictates the separation of concerns in our workflow:
+This philosophy dictates our core architectural patterns and the separation of concerns between agents.
+
+##### Principle: State Transitions are Gated by Tools, Not Prompts
+
+An agent's fundamental operating loop is to analyze its context and choose the next best tool to make progress. A passive instruction in a prompt, such as "stop and wait for a review," is unreliable because it conflicts with this core directive. The agent will often ignore the instruction and select the next logical tool it sees in its overall list of capabilities, leading to "runaway" execution.
+
+The solution is to shift from "Prompt Engineering" to "Tool Engineering" for control flow.
+
+**If you want an agent to perform a state transition, you must provide a tool for that transition.**
+
+The tool's schema and description become a form of "in-line prompt," a structured and reliable way to inform the agent when a specific action is appropriate. This simplifies the main prompt, removing the need for complex conditional logic, and makes the agent's behavior more predictable.
+
+*   **Application:** The `SWE Agent` is not told to "wait for a review." It is told that the final step of its implementation task is to call the `request_code_review()` tool. This tool acts as a gate, explicitly ending the agent's turn and signaling the Orchestrator to begin the next phase. This is an architecturally sound and reliable method for managing state transitions.
+
+##### Principle: Separation of Concerns
 
 *   **The `Plan Agent` and Human Reviewer (The "Mission Planners"):** They perform the complex, creative work of breaking a large feature into a series of small, verifiable TDD steps. The human review of this plan acts as the primary "upfront" verification of the overall strategy.
 *   **The `SWE Agent` (The "Executor"):** Its role is to execute one small, pre-verified step at a time. Its goal is simple and verifiable: make the test for the current step pass, and ensure the entire system remains healthy via `npm run preflight`. This minimizes the "drift" by making `N` (the number of steps between verifications) as small as possible.

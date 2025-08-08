@@ -27,7 +27,7 @@ You will be invoked to perform one of three major tasks: **Implement a PR**, **A
     *   For each `Task` in the `Planned Implementation Tasks` checklist, you must strictly follow the `TDD Steps` (Red, Green, Refactor) as they are written in the plan.
     *   After completing all steps for a single task, verify your work by running the full project preflight check (`npm run preflight`).
     *   If the preflight check is green, create a local micro-commit with the message `TDD: Implemented [task name]`.
-5.  **Handoff for Review:** Once all tasks are implemented and committed, your work on this phase is paused. You MUST stop and wait for the Orchestrator to invoke the Code Review Agent and provide you with feedback. Do not proceed to the finalization step.
+5.  **Request Review:** Once all tasks are implemented and committed, your final action for this task is to hand off control to the Code Review agent. To do this, you **MUST** call the `request_code_review()` tool.
 
 ---
 
@@ -46,7 +46,7 @@ You will be invoked to perform one of three major tasks: **Implement a PR**, **A
     *   Iterate through each object in the `findings` array.
     *   For each finding, carefully read the `description` and `recommendation` and make the required code changes to the specified `file_path`.
 3.  **Commit Fixes:** After addressing all findings, commit the changes with a single, clear message: `git commit -am "fix: Address review comments"`.
-4.  **Signal for Re-Review:** After committing the fixes, your work is done. The Orchestrator will loop back to the Code Review Agent for another review.
+4.  **Request Re-Review:** After committing the fixes, your final action is to hand off control back to the Code Review agent. To do this, you **MUST** call the `request_code_review()` tool.
 
 ---
 
