@@ -80,8 +80,8 @@ my-project/
     2.  **Create Branch:** Creates a new, dedicated feature branch from the *latest* `main` (e.g., `git checkout main && git pull && git checkout -b feature/pr-1-add-caching-service`).
     3.  **Create Work Order:** Creates the `ACTIVE_PR.md` file from the `pr_template.md`. It populates this file by copying the `PR Title`, `Summary`, `Verification Plan`, and the full list of `Planned Implementation Tasks` from the plan. This `ACTIVE_PR.md` is now the single source of truth for the current work cycle.
     4.  **Execute TDD Cycles:** For each `Task` listed in `ACTIVE_PR.md`, the agent performs the full Red-Green-Refactor cycle.
-    5.  **Create Safety Checkpoint:** After each successful TDD cycle (i.e., the tests are green), the agent creates a local micro-commit: `git add .` followed by `git commit -m "TDD: Implemented [task name]"`. This provides a safe rollback point.
-*   **Output:** A local feature branch with a series of small, incremental commits, ready for a review.
+    5.  **Create Safety Checkpoint:** After each successful TDD cycle, the agent MUST run the full preflight check (e.g., `npm run preflight`) to ensure all tests pass, there are no type errors, and the code is linted. Once the preflight check is green, the agent creates a local micro-commit: `git add .` followed by `git commit -m "TDD: Implemented [task name]"`. This provides a safe rollback point.
+*   **Output & Handoff:** A local feature branch with a series of small, incremental commits is created. The `SWE Agent`'s role is now paused. It MUST wait for the `Code Review Agent` to complete its review before proceeding. The process now moves to Phase 2.
 
 #### Phase 2: The Verification Cycle (Review & Refinement)
 
@@ -134,6 +134,60 @@ This separation of duties is a critical safety feature. The `SWE Agent`'s role i
     6.  Delete the remote feature branch.
 
 This process repeats for every PR in the plan, ensuring continuous integration and a healthy `main` branch.
+
+
+
+---
+
+### Core Design Philosophy: The Statistical Reliability Model
+
+The design of this multi-agent system is guided by a core philosophy aimed at ensuring reliable and predictable outcomes from agents that are, at their core, based on statistical models.
+
+#### The Statistical Nature of LLM Agents
+
+An LLM's reasoning process can be understood through an analogy with an Inertial Navigation System (INS). An INS can plot a highly accurate course over a short distance by making a series of complex calculations from a known starting point. However, each calculation introduces a tiny, unavoidable error. Over a long journey, these small errors accumulate, causing the system to "drift" significantly from its true position.
+
+Similarly, an LLM agent performs a series of reasoning steps to accomplish a task. As a statistical model, each step has a non-zero probability of error (`x%`). For a task requiring `N` sequential reasoning steps, the cumulative probability of at least one error occurring can be expressed as `E = (1 - (1 - x%)^N)`. As `N` increases, this probability `E` approaches 1, making failure almost certain for complex, long-running tasks.
+
+
+
+The critical failure point occurs when this accumulated "drift" pollutes the agent's context. Its internal understanding of the state of the world becomes incorrect, causing its subsequent predictions to be based on flawed premises, leading to a cascading failure from which it cannot recover.
+
+#### Strategies for Managing Statistical Drift
+
+To build a reliable system, there are three primary strategies to combat this issue:
+
+1.  **Reduce `x%` (Improve Accuracy):** This involves using more powerful LLM models and investing heavily in careful context engineering (e.g., high-quality prompts, few-shot examples) to make each individual reasoning step as accurate as possible.
+
+2.  **Implement Recovery Logic (Handle Polluted Context):** This involves designing sophisticated methods for an agent to detect when its context may be polluted and to take steps to recover. This could include summarizing its history, re-evaluating its initial goal, or other advanced error-correction techniques.
+
+3.  **Reduce Scope (Minimize `N`):** This involves architecting the workflow so that an agent only needs to perform a small number of steps (`N`) before reaching an objective checkpoint that resets the statistical drift.
+
+To build a robust system for complex tasks, all three strategies are important. However, this initial workflow design focuses primarily on **Strategy #3: Reduce Scope** as the most reliable and direct path to a predictable outcome.
+
+#### The Principle of Verifiable Checkpoints
+
+To counteract this drift, our system is built on the principle of frequent, verifiable checkpoints. We cannot eliminate the possibility of drift, but we can correct it at regular intervals. This is analogous to an INS being periodically corrected by an external, objective signal, like GPS.
+
+This leads to three foundational design principles:
+
+1.  **Every Automated Task Must Have a Verifiable Goal.** An agent's task must be defined by a concrete, measurable, and unambiguous goal. Success or failure should be a clear, objective state, not a matter of opinion.
+    *   *Example:* The goal "make the tests pass" is verifiable. The goal "refactor the code to be better" is not easily verifiable by a machine.
+
+2.  **Agents Must Have Tools to Verify Their Own Progress.** The agent performing the work must have direct access to the tools that measure success for its given task. This empowers it to self-assess, iterate, and determine when its work is truly "done."
+    *   *Example:* The `SWE Agent` uses `npm run preflight` to verify that its code changes are valid and that the codebase is still healthy.
+
+3.  **Failure is a Signal About Scope, Not Just the Agent.** When an agent fails to reach its verifiable goal, it should not be seen merely as a flaw in the agent's reasoning. It is a fundamental signal that the goal itself was likely too large, complex, or ambiguous for a single, verifiable step. The system's response should be to **reduce the scope** and provide the agent with a smaller, more manageable, and still verifiable goal.
+
+#### Application in This Workflow
+
+This philosophy dictates the separation of concerns in our workflow:
+
+*   **The `Plan Agent` and Human Reviewer (The "Mission Planners"):** They perform the complex, creative work of breaking a large feature into a series of small, verifiable TDD steps. The human review of this plan acts as the primary "upfront" verification of the overall strategy.
+*   **The `SWE Agent` (The "Executor"):** Its role is to execute one small, pre-verified step at a time. Its goal is simple and verifiable: make the test for the current step pass, and ensure the entire system remains healthy via `npm run preflight`. This minimizes the "drift" by making `N` (the number of steps between verifications) as small as possible.
+*   **The `Code Review Agent` (The "Quality Inspector"):** It provides the final, higher-level verification, ensuring the implemented code not only works but is also well-designed and meets the overall goals of the PR.
+
+By adhering to this model, we create a system that is more robust, predictable, and easier to debug, turning the inherent statistical nature of LLMs into a manageable engineering challenge.
 
 ---
 

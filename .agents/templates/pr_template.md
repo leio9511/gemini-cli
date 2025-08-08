@@ -5,8 +5,7 @@
 <!-- The SWE Agent will copy the "Summary" from the planning doc here. -->
 
 ### Design Document
-<!-- Link to the approved planning/design doc that this PR is a part of. -->
-:link: [Link to Design Doc]()
+{{DESIGN_DOCUMENT_PATH}}
 
 ---
 

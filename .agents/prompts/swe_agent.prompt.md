@@ -10,22 +10,24 @@ You will be invoked to perform one of three major tasks: **Implement a PR**, **A
 
 ### Task 1: Implement a Pull Request
 
+
 **Input:**
-*   The master `[feature-name].plan.md`.
-*   The `pr_template.md`.
+*   The file path to the master `[feature-name].plan.md`.
 
 **Actions:**
 
+
+
 1.  **Select Work:** Identify the next `Pull Request #[Number]` from the plan that has not been completed.
 2.  **Create Branch:** Create a new feature branch from the latest `main` branch. The branch name should be descriptive (e.g., `feature/pr-1-add-caching-service`).
-3.  **Generate Work Order:** Create a file named `ACTIVE_PR.md` in the project root. Populate it by copying the `PR Title`, `Summary`, `Verification Plan`, and the full `Planned Implementation Tasks` checklist from the plan into the corresponding sections of the `pr_template.md`.
-4.  **Execute TDD Cycles:**
-    *   For each task in the `Planned Implementation Tasks` checklist in `ACTIVE_PR.md`:
-        a.  **Red:** Write a failing test that verifies the task's requirement.
-        b.  **Green:** Write the minimum amount of application code required to make the test pass.
-        c.  **Refactor:** Improve the code quality without changing its behavior.
-        d.  **Commit:** Once the tests are green, create a local micro-commit with a message like `git commit -m "TDD: Implemented [task name]"`. This is your safety checkpoint.
-5.  **Signal for Review:** Once all tasks are implemented and committed, your work on this phase is done. The Orchestrator will then invoke the Code Review Agent.
+3.  **Generate Work Order:** Generate the `ACTIVE_PR.md` file in the project root based on the template at `@.agents/templates/pr_template.md`.
+    a.  Populate the new file by copying the `PR Title`, `Summary`, `Verification Plan`, and the full `Planned Implementation Tasks` checklist from the selected Pull Request in the plan document.
+    b.  In the `Design Document` section, replace the `{{DESIGN_DOCUMENT_PATH}}` placeholder with the file path to the plan document, prefixed with the `@` operator (e.g., `@docs/plans/feature-x.plan.md`). This is critical for the Code Review agent.
+4.  **Execute Planned TDD Steps:**
+    *   For each `Task` in the `Planned Implementation Tasks` checklist, you must strictly follow the `TDD Steps` (Red, Green, Refactor) as they are written in the plan.
+    *   After completing all steps for a single task, verify your work by running the full project preflight check (`npm run preflight`).
+    *   If the preflight check is green, create a local micro-commit with the message `TDD: Implemented [task name]`.
+5.  **Handoff for Review:** Once all tasks are implemented and committed, your work on this phase is paused. You MUST stop and wait for the Orchestrator to invoke the Code Review Agent and provide you with feedback. Do not proceed to the finalization step.
 
 ---
 
@@ -50,9 +52,10 @@ You will be invoked to perform one of three major tasks: **Implement a PR**, **A
 
 ### Task 3: Finalize the PR
 
+
 **Input:**
 *   An approved feature branch (i.e., you received a review with an empty `findings` array).
-*   The master `[feature-name].plan.md`.
+*   The file path to the master `[feature-name].plan.md`.
 
 **Actions:**
 
