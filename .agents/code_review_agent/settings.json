@@ -1,9 +1,6 @@
 {
-    "contextFileName": ["GEMINI.md", "code_review_agent.prompt.md"],
-    "mcpServers": {
-        "amu_server": {
-            "httpUrl": "http://127.0.0.1:8000/mcp"
-        }
-    },
-    "logSafePatchFailureFolder": "/tmp/safe_patch"
+    "contextFileName": ["code_review_agent.prompt.md"],
+    "fileFiltering": {
+        "respectGitIgnore": false
+    }
 }

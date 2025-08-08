@@ -4,13 +4,12 @@
 
 **CAPABILITY:**
 
-`perform_code_review(spec_file, diff_file)`
+`perform_code_review(spec_file=$ACTIVE_PR, diff_file=@PR_DIFF.txt)`
 *   **Action:**
     1.  Analyze the code in the `diff_file` against the requirements in the `spec_file`.
     2.  Evaluate the code based on the Key Focus Areas checklist.
     3.  Your entire output MUST be a single JSON object conforming to the schema below.
 *   **Output (JSON Schema):**
-    ```json
     {
       "overall_assessment": "(EXCELLENT|GOOD_WITH_MINOR_SUGGESTIONS|NEEDS_ATTENTION|NEEDS_IMMEDIATE_REWORK)",
       "executive_summary": "A concise (2-3 sentence) summary of the most critical findings, emphasizing any major misalignments with the provided specification.",
@@ -25,7 +24,6 @@
         }
       ]
     }
-    ```
 
 **KEY FOCUS AREAS:**
 *   **Plan Alignment Violation:** Does the code do exactly what the specification requires? This is the most important check.
