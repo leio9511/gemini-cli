@@ -1,0 +1,4 @@
+{
+  "contextFileName": ["GEMINI.md", "plan_agent.prompt.md"],
+  "logSafePatchFailureFolder": "/tmp/safe_patch",
+}
