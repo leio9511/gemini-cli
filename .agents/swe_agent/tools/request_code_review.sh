@@ -25,11 +25,9 @@ PROMPT="perform_code_review"
 
 # 4. Run the Code Review Agent and capture its JSON output.
 #    Temporarily set the default settings to the review agent's settings.
-ln -sf "../$REVIEW_SETTINGS_FILE" "$DEFAULT_SETTINGS_FILE"
-REVIEW_RESULT=$($GEMINI_CLI -p "$PROMPT")
-#
-#    The --cf flag is not ready yet, this is the old way:
-#    REVIEW_RESULT=$($GEMINI_CLI --cf "$REVIEW_SETTINGS_FILE" -p "$PROMPT")
+#    ln -sf "../$REVIEW_SETTINGS_FILE" "$DEFAULT_SETTINGS_FILE"
+#    REVIEW_RESULT=$($GEMINI_CLI -p "$PROMPT")
+REVIEW_RESULT=$($GEMINI_CLI --cf "$REVIEW_SETTINGS_FILE" -p "$PROMPT")
 
 # 5. Clean up the temporary diff file
 rm "$DIFF_FILE"
