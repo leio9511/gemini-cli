@@ -18,14 +18,16 @@ All permanent artifacts for the agent workflow should be stored in a dedicated d
 
 ```
 my-project/
-├── .agents/
-│   ├── prompts/
-│   │   ├── plan_agent.prompt.md
-│   │   ├── swe_agent.prompt.md
-│   │   └── code_review_agent.prompt.md
-│   └── templates/
-│       ├── planning-doc-template.md
-│       └── pr_template.md
+└── .agents/
+    ├── swe_agent/
+    │   ├── swe_agent.prompt.md
+    │   ├── settings.json
+    │   └── tools/
+    │       ├── discover.sh
+    │       └── request_code_review.sh
+    └── templates/
+        ├── planning-doc-template.md
+        └── pr_template.md
 ├── docs/
 │   └── plans/
 │       └── feature-x.plan.md
@@ -36,20 +38,19 @@ my-project/
 
 | Artifact | Location | Git Tracked? | Rationale |
 | :--- | :--- | :--- | :--- |
-| **Core Personas** (`...prompt.md`) | `.agents/prompts/` | **Yes** | These are the "source code" for the agents' behavior and must be version-controlled for consistency. |
+| **Agent Definitions** (`.agents/...`) | `.agents/` | **Yes** | The prompts, settings, and tool scripts are the "source code" for the agents' behavior and must be version-controlled. |
 | **Permanent Templates** (`...template.md`) | `.agents/templates/` | **Yes** | These define the structure of the workflow and must be version-controlled. |
 | **Feature Plans** (`...plan.md`) | `docs/plans/` | **Yes** | The official design document and blueprint for a feature. Serves as critical project documentation. |
 | **`ACTIVE_PR.md`** | Project Root | **No** | A transient state-tracking file. It is created and deleted during a PR cycle and should be in `.gitignore`. |
-| **`REVIEW_COMMENTS.md`** | Project Root | **No** | A transient communication channel. It is created and deleted during the review loop and should be in `.gitignore`. |
 
 #### Recommended `.gitignore` Entries
 
 ```
 # .gitignore
 
-# Agent Workflow Files
+# Transient Agent Workflow Files
 /ACTIVE_PR.md
-/REVIEW_COMMENTS.md
+/PR_DIFF.txt
 ```
 
 ---
@@ -84,17 +85,19 @@ my-project/
 *   **Handoff via Tool:** After all tasks are complete, the `SWE Agent`'s final action is to call a `request_code_review()` tool. This tool's purpose is to signal to the Orchestrator that the implementation is ready for review. This is a blocking action that reliably ends the agent's turn.
 
 #### Phase 2: The Verification Cycle (Review & Refinement)
-
-*   **Agents:** `Code Review Agent` <-> `SWE Agent`
-*   **Input:** The `ACTIVE_PR.md` and the local feature branch.
+*   **Agent:** `SWE Agent` (using the `request_code_review` tool)
+*   **Input:** The local feature branch.
 *   **Actions:**
-    1.  **Review Goal:** The `Code Review Agent` reads `ACTIVE_PR.md` to understand what was supposed to be built.
-    2.  **Analyze Code:** It runs `git diff main...HEAD` to see the cumulative result of all the `SWE Agent`'s work for this PR.
-    3.  **Provide Feedback:** It writes its findings into a `REVIEW_COMMENTS.md` file in a structured JSON format. Approval is an empty `findings` array.
-    4.  **Address Feedback:** The `SWE Agent` checks the `REVIEW_COMMENTS.md` file.
-        *   If the `findings` array in the JSON is empty: The loop is over. The process moves to Phase 3.
-        *   If comments exist: The `SWE Agent` reads the feedback, makes the necessary code changes, and commits them with `git commit -am "fix: Address review comments"`. The process then loops back to step 1 of this phase for another review.
-*   **Output:** An approved set of changes on the local feature branch, or a new call to `request_code_review()` after fixes are committed.
+    1.  **Initiate Review:** The `SWE Agent` calls the `request_code_review()` tool.
+    2.  **Automated Review:** The tool script takes over:
+        a.  It runs `git diff main...HEAD` and saves the output to a temporary `PR_DIFF.txt` file.
+        b.  It invokes the Gemini CLI non-interactively, loading the `Code Review Agent`'s persona and providing the `@ACTIVE_PR.md` and `@PR_DIFF.txt` files as context.
+        c.  It captures the JSON output from the `Code Review Agent`.
+        d.  It cleans up the temporary diff file.
+    3.  **Process Feedback:** The `SWE Agent` receives the JSON directly as the tool's output.
+        *   If the `findings` array is empty, the PR is approved, and the process moves to Phase 3.
+        *   If comments exist, the `SWE Agent` makes the required code changes, commits them, and loops back to step 1 of this phase to request another review.
+*   **Output:** An approved set of changes on the local feature branch.
 
 #### Phase 3: The Finalization (Merge Preparation)
 
@@ -104,7 +107,7 @@ my-project/
     1.  **Squash History:** The agent runs `git reset --soft $(git merge-base HEAD main)` to combine all incremental TDD and fix-up commits into a single, staged change.
     2.  **Create Final Commit:** It creates one clean, final commit using the title from `ACTIVE_PR.md`: `git commit -m "feat: [PR Title]"`.
     3.  **Update Plan:** It finds the corresponding PR in the master plan file and marks it as `[DONE]`, appending the final commit hash.
-    4.  **Cleanup:** It deletes the `ACTIVE_PR.md` and `REVIEW_COMMENTS.md` files.
+    4.  **Cleanup:** It deletes the `ACTIVE_PR.md` file.
 *   **Output:** A clean local feature branch with a single, well-documented, and fully reviewed commit.
 
 ---
@@ -214,7 +217,7 @@ The Orchestrator is not a specialist; it is the **process manager** or "assembly
 
 1.  **State Management:** Reading the master plan to determine which PR is next.
 2.  **Agent Invocation:** Calling the correct specialist agent (`Plan`, `SWE`, or `Code Review`) at the appropriate time with the correct persona prompt.
-3.  **State Transition:** Checking the output of one phase to decide which agent to call next (e.g., parsing `REVIEW_COMMENTS.md` to check if the `findings` array is empty).
+3.  **State Transition:** Checking the output of one phase to decide which agent to call next (e.g., parsing the JSON from the `request_code_review` tool to check if the `findings` array is empty).
 4.  **Loop Management:** Managing the review/refinement loop between the `SWE Agent` and `Code Review Agent`.
 5.  **Error Handling:** Pausing the workflow and flagging for human intervention if a step fails repeatedly.
 6.  **Plan Completion:** After a PR is successfully finalized by the `SWE Agent`, the Orchestrator checks the master plan for any remaining PRs. If none are left, it updates the plan document to mark the entire feature as completed and performs any final cleanup.

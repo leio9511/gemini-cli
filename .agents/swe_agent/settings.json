@@ -1,0 +1,14 @@
+{
+    "contextFileName": [
+        "GEMINI.md",
+        "swe_agent.prompt.md"
+    ],
+    "mcpServers": {
+        "amu_server": {
+            "httpUrl": "http://127.0.0.1:8000/mcp"
+        }
+    },
+    "logSafePatchFailureFolder": "/tmp/safe_patch",
+    "toolDiscoveryCommand": "/usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/discover.sh",
+    "toolCallCommand": "/usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/run.sh"
+}
