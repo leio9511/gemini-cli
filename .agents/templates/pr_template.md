@@ -1,15 +1,19 @@
 ### PR Title
+
 <!-- The SWE Agent will copy the "Pull Request #[Number]: [Title of PR]" from the planning doc here. -->
 
 ### Summary
+
 <!-- The SWE Agent will copy the "Summary" from the planning doc here. -->
 
 ### Design Document
+
 {{DESIGN_DOCUMENT_PATH}}
 
 ---
 
 ### Planned Implementation Tasks
+
 <!--
 Guidance for the Code Review Agent:
 This section is copied directly from the planning document. Your primary role is to verify that the code changes below correctly and completely implement these planned tasks.
@@ -20,6 +24,7 @@ This section is copied directly from the planning document. Your primary role is
 ---
 
 ### Summary of Changes
+
 <!--
 Guidance for the SWE Agent:
 After completing all tasks, briefly summarize the key changes you made in the code. For example:
@@ -29,11 +34,12 @@ After completing all tasks, briefly summarize the key changes you made in the co
 -->
 
 ### Verification Plan
+
 <!-- The SWE Agent will copy the "Verification Plan" from the planning doc here. -->
 
 ### Testing Matrix
-<!-- Before submitting please validate your changes on as many of these options as possible -->
 
+<!-- Before submitting please validate your changes on as many of these options as possible -->
 
 |          | 🍏  | 🪟  | 🐧  |
 | -------- | --- | --- | --- |
@@ -43,8 +49,8 @@ After completing all tasks, briefly summarize the key changes you made in the co
 | Podman   | ❓  | -   | -   |
 | Seatbelt | ❓  | -   | -   |
 
-
 ### Linked issues / bugs
+
 <!--
 Link to any related issues or bugs.
 

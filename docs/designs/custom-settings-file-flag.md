@@ -22,10 +22,10 @@ The proposed solution involves a small, low-risk, additive change to the CLI's c
 
 A new flag will be added to the command-line parser (likely in `packages/cli/src/cli.ts` or a similar file).
 
-*   **Flag:** `--config-file`
-*   **Alias:** `--cf`
-*   **Type:** `string`
-*   **Description:** "Specify a custom path for the project settings JSON file. Overrides the default `.gemini/settings.json`."
+- **Flag:** `--config-file`
+- **Alias:** `--cf`
+- **Type:** `string`
+- **Description:** "Specify a custom path for the project settings JSON file. Overrides the default `.gemini/settings.json`."
 
 **Note:** The alias `-c` was originally considered but is already in use by the `--checkpointing` flag. `--cf` is the proposed alternative.
 
@@ -34,16 +34,18 @@ A new flag will be added to the command-line parser (likely in `packages/cli/src
 The core change will be in `packages/cli/src/config/settings.ts`. The logic responsible for loading the project-level settings will be updated.
 
 **Current Logic (Conceptual):**
+
 1.  Construct the path to `.gemini/settings.json`.
 2.  Load the settings from that file if it exists.
 
 **New Logic (Conceptual):**
+
 1.  Check if the `--config-file` flag was provided in the command-line options.
 2.  **If yes:**
-    *   Use the path provided by the flag as the project settings file path.
-    *   Load the settings from this custom path.
+    - Use the path provided by the flag as the project settings file path.
+    - Load the settings from this custom path.
 3.  **If no:**
-    *   Fall back to the existing behavior of loading from `.gemini/settings.json`.
+    - Fall back to the existing behavior of loading from `.gemini/settings.json`.
 
 This ensures the change is fully backward-compatible.
 
@@ -63,6 +65,7 @@ The updated precedence will be:
 ## 4. Testing Strategy
 
 A new unit test will be added to `packages/cli/src/config/settings.test.ts`. This test will:
+
 1.  Create two temporary settings files (e.g., `test-settings-a.json` and `test-settings-b.json`) with distinct values for a specific setting (e.g., `"theme": "ThemeA"` and `"theme": "ThemeB"`).
 2.  Invoke the configuration loader, passing the path to `test-settings-a.json` via the new `--config-file` option.
 3.  Assert that the loaded configuration contains `"theme": "ThemeA"`.
@@ -71,7 +74,8 @@ A new unit test will be added to `packages/cli/src/config/settings.test.ts`. Thi
 ## 5. Documentation Changes
 
 The official CLI documentation will be updated to reflect this new feature.
-*   **File:** `docs/cli/configuration.md`
-*   **Change:** A new entry will be added to the "Command-Line Arguments" section detailing the `--config-file` flag, its alias, and its purpose.
+
+- **File:** `docs/cli/configuration.md`
+- **Change:** A new entry will be added to the "Command-Line Arguments" section detailing the `--config-file` flag, its alias, and its purpose.
 
 This plan outlines a clear and straightforward path to implementing a valuable feature that will unlock immediate progress in testing and refining our multi-agent development workflows.

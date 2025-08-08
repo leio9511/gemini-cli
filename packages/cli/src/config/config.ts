@@ -69,6 +69,7 @@ export interface CliArgs {
   ideModeFeature: boolean | undefined;
   proxy: string | undefined;
   includeDirectories: string[] | undefined;
+  configFile: string | undefined;
 }
 
 export async function parseArguments(): Promise<CliArgs> {
@@ -224,6 +225,11 @@ export async function parseArguments(): Promise<CliArgs> {
       coerce: (dirs: string[]) =>
         // Handle comma-separated values
         dirs.flatMap((dir) => dir.split(',').map((d) => d.trim())),
+    })
+    .option('config-file', {
+      alias: 'cf',
+      type: 'string',
+      description: 'Path to a custom project settings file.',
     })
     .version(await getCliVersion()) // This will enable the --version flag based on package.json
     .alias('v', 'version')

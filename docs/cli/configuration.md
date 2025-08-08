@@ -366,6 +366,10 @@ Arguments passed directly when running the CLI can override other configurations
   - Displays help information about command-line arguments.
 - **`--show-memory-usage`**:
   - Displays the current memory usage.
+- **`--config-file <path/to/settings.json>`** (**`--cf <path/to/settings.json>`**):
+  - Specifies a custom path for the project-level settings file.
+  - This overrides the default behavior of looking for `.gemini/settings.json` in the project root.
+  - Example: `gemini --cf /path/to/my/custom-settings.json`
 - **`--yolo`**:
   - Enables YOLO mode, which automatically approves all tool calls.
 - **`--telemetry`**:

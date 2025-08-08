@@ -1,6 +1,6 @@
 {
-    "contextFileName": ["code_review_agent.prompt.md"],
-    "fileFiltering": {
-        "respectGitIgnore": false
-    }
+  "contextFileName": ["code_review_agent.prompt.md"],
+  "fileFiltering": {
+    "respectGitIgnore": false
+  }
 }

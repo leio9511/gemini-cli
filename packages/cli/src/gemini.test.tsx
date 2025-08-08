@@ -45,6 +45,10 @@ vi.mock('./config/config.js', () => ({
     originalModelBeforeSwitch: null,
     finalModel: 'test-model',
   }),
+  config: {
+    getProjectRoot: vi.fn(() => '/'),
+  },
+  parseArguments: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('read-package-up', () => ({

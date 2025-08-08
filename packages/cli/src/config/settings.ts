@@ -308,7 +308,10 @@ export function loadEnvironment(): void {
  * Loads settings from user and workspace directories.
  * Project settings override user settings.
  */
-export function loadSettings(workspaceDir: string): LoadedSettings {
+export function loadSettings(
+  workspaceDir: string,
+  configFile?: string,
+): LoadedSettings {
   loadEnvironment();
   let systemSettings: Settings = {};
   let userSettings: Settings = {};
@@ -369,11 +372,9 @@ export function loadSettings(workspaceDir: string): LoadedSettings {
     });
   }
 
-  const workspaceSettingsPath = path.join(
-    workspaceDir,
-    SETTINGS_DIRECTORY_NAME,
-    'settings.json',
-  );
+  const workspaceSettingsPath =
+    configFile ??
+    path.join(workspaceDir, SETTINGS_DIRECTORY_NAME, 'settings.json');
 
   // This comparison is now much more reliable.
   if (realWorkspaceDir !== realHomeDir) {

@@ -1013,6 +1013,43 @@ describe('Settings Loading and Merging', () => {
         });
       });
     });
+
+    describe('when --config-file is used', () => {
+      it('should load workspace settings from the path specified in the flag', () => {
+        const CUSTOM_CONFIG_PATH = '/mock/custom/settings.json';
+        const customSettingsContent = {
+          theme: 'custom-theme-from-flag',
+          sandbox: true,
+        };
+
+        (mockFsExistsSync as Mock).mockImplementation(
+          (p: fs.PathLike) => p === CUSTOM_CONFIG_PATH,
+        );
+        (fs.readFileSync as Mock).mockImplementation(
+          (p: fs.PathOrFileDescriptor) => {
+            if (p === CUSTOM_CONFIG_PATH) {
+              return JSON.stringify(customSettingsContent);
+            }
+            return '{}';
+          },
+        );
+
+        // Simulate providing the flag
+        const settings = loadSettings(MOCK_WORKSPACE_DIR, CUSTOM_CONFIG_PATH);
+
+        expect(fs.readFileSync).toHaveBeenCalledWith(
+          CUSTOM_CONFIG_PATH,
+          'utf-8',
+        );
+        expect(settings.workspace.path).toBe(CUSTOM_CONFIG_PATH);
+        expect(settings.workspace.settings).toEqual(customSettingsContent);
+        expect(settings.merged).toEqual({
+          ...customSettingsContent,
+          customThemes: {},
+          mcpServers: {},
+        });
+      });
+    });
   });
 
   describe('LoadedSettings class', () => {

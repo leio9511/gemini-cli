@@ -5,7 +5,6 @@
 **Date:** YYYY-MM-DD
 **Commit:** (leave blank until first commit)
 
-
 ### 1. Abstract
 
 <!-- A brief, one-paragraph summary of the feature, the problem it solves, and the proposed solution. -->
@@ -60,10 +59,6 @@
 2.  **[Component 2] Tests (`path/to/component2.test.ts`):**
     - <!-- List the specific test cases for the second component. -->
 
-
-
-
-
 ### 7. Agile Implementation Plan (TDD Flow)
 
 <!-- Guidance for the Plan Agent:
@@ -90,40 +85,44 @@ Your goal is to create a robust, step-by-step implementation plan that minimizes
 <!-- **Goal:** Describe the goal of this phase. -->
 
 **Pull Request #1: [Title of PR]**
+
 - **Summary:** <!-- A brief, one-sentence description of what this PR will accomplish. -->
 - **Verification Plan:** <!-- Detail the steps a reviewer will take to verify the changes. Include test commands and manual testing instructions. -->
 
 **Implementation Tasks:**
 
 **Task 1: [Name of first task, e.g., Handle H1 Headers]**
-*   **TDD Steps:**
-    1.  **Red:** <!-- Write a failing test for the specific behavior. -->
-    2.  **Green:** <!-- Write the minimal code to make the test pass. -->
-    3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
+
+- **TDD Steps:**
+  1.  **Red:** <!-- Write a failing test for the specific behavior. -->
+  2.  **Green:** <!-- Write the minimal code to make the test pass. -->
+  3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
 
 **Task 2: [Name of second task, e.g., Handle Bold Text]**
-*   **TDD Steps:**
-    1.  **Red:** <!-- Write a failing test for the specific behavior. -->
-    2.  **Green:** <!-- Write the minimal code to make the test pass. -->
-    3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
+
+- **TDD Steps:**
+  1.  **Red:** <!-- Write a failing test for the specific behavior. -->
+  2.  **Green:** <!-- Write the minimal code to make the test pass. -->
+  3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
 
 ---
 
 #### **Phase 2: [Name of Second Phase]**
 
-
 <!-- **Goal:** Describe the goal of this phase. -->
 
 **Pull Request #2: [Title of PR]**
+
 - **Summary:** <!-- A brief, one-sentence description of what this PR will accomplish. -->
 - **Verification Plan:** <!-- Detail the steps a reviewer will take to verify the changes. Include test commands and manual testing instructions. -->
 
 **Implementation Tasks:**
 
 **Task 1: [Name of first task]**
-*   **TDD Steps:**
-    1.  **Red:** <!-- Write a failing test for the specific behavior. -->
-    2.  **Green:** <!-- Write the minimal code to make the test pass. -->
-    3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
+
+- **TDD Steps:**
+  1.  **Red:** <!-- Write a failing test for the specific behavior. -->
+  2.  **Green:** <!-- Write the minimal code to make the test pass. -->
+  3.  **Refactor (Optional):** <!-- Improve the implementation while keeping tests green. -->
 
 ...

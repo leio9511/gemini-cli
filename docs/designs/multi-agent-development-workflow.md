@@ -5,7 +5,6 @@ This workflow is designed to transform a high-level feature request into a serie
 **High-Level Flow:**
 `Plan Agent` -> `SWE Agent` -> `Code Review Agent` -> (loop) -> `SWE Agent` -> (repeat)
 
-
 ---
 
 ### System Artifacts and Git Strategy
@@ -36,12 +35,12 @@ my-project/
 
 #### Artifact Lifecycle
 
-| Artifact | Location | Git Tracked? | Rationale |
-| :--- | :--- | :--- | :--- |
-| **Agent Definitions** (`.agents/...`) | `.agents/` | **Yes** | The prompts, settings, and tool scripts are the "source code" for the agents' behavior and must be version-controlled. |
-| **Permanent Templates** (`...template.md`) | `.agents/templates/` | **Yes** | These define the structure of the workflow and must be version-controlled. |
-| **Feature Plans** (`...plan.md`) | `docs/plans/` | **Yes** | The official design document and blueprint for a feature. Serves as critical project documentation. |
-| **`ACTIVE_PR.md`** | Project Root | **No** | A transient state-tracking file. It is created and deleted during a PR cycle and should be in `.gitignore`. |
+| Artifact                                   | Location             | Git Tracked? | Rationale                                                                                                              |
+| :----------------------------------------- | :------------------- | :----------- | :--------------------------------------------------------------------------------------------------------------------- |
+| **Agent Definitions** (`.agents/...`)      | `.agents/`           | **Yes**      | The prompts, settings, and tool scripts are the "source code" for the agents' behavior and must be version-controlled. |
+| **Permanent Templates** (`...template.md`) | `.agents/templates/` | **Yes**      | These define the structure of the workflow and must be version-controlled.                                             |
+| **Feature Plans** (`...plan.md`)           | `docs/plans/`        | **Yes**      | The official design document and blueprint for a feature. Serves as critical project documentation.                    |
+| **`ACTIVE_PR.md`**                         | Project Root         | **No**       | A transient state-tracking file. It is created and deleted during a PR cycle and should be in `.gitignore`.            |
 
 #### Recommended `.gitignore` Entries
 
@@ -57,58 +56,58 @@ my-project/
 
 ### Phase 0: The Blueprint (Planning)
 
-*   **Agent:** `Plan Agent`
-*   **Input:** A high-level feature request (e.g., "Add user profile caching").
-*   **Actions:**
-    1.  The Plan Agent uses the `planning-doc-template.md` to create a comprehensive plan for the feature.
-    2.  Following the embedded guidance, it breaks the feature down into Phases and a series of small, dependent Pull Requests.
-    3.  For each PR, it defines a clear Summary, a Verification Plan, and a checklist of Implementation Tasks. Each task represents a single TDD cycle.
-*   **Output:** A detailed `[feature-name].plan.md` file. This document is the **master blueprint** and backlog for the entire feature.
-
+- **Agent:** `Plan Agent`
+- **Input:** A high-level feature request (e.g., "Add user profile caching").
+- **Actions:**
+  1.  The Plan Agent uses the `planning-doc-template.md` to create a comprehensive plan for the feature.
+  2.  Following the embedded guidance, it breaks the feature down into Phases and a series of small, dependent Pull Requests.
+  3.  For each PR, it defines a clear Summary, a Verification Plan, and a checklist of Implementation Tasks. Each task represents a single TDD cycle.
+- **Output:** A detailed `[feature-name].plan.md` file. This document is the **master blueprint** and backlog for the entire feature.
 
 ---
 
 ### The PR Delivery Cycle
 
-***This entire Phase 1-3 cycle repeats for each `Pull Request #[Number]` defined in the master plan.***
+**_This entire Phase 1-3 cycle repeats for each `Pull Request #[Number]` defined in the master plan._**
 
 #### Phase 1: The Build Cycle (Implementation)
 
-*   **Agent:** `SWE Agent`
-*   **Input:** The `[feature-name].plan.md` and the `pr_template.md`.
-*   **Actions:**
-    1.  **Select Work:** Picks the next available `Pull Request #[Number]` from the plan.
-    2.  **Create Branch:** Creates a new, dedicated feature branch from the *latest* `main` (e.g., `git checkout main && git pull && git checkout -b feature/pr-1-add-caching-service`).
-    3.  **Create Work Order:** Creates the `ACTIVE_PR.md` file from the `pr_template.md`. It populates this file by copying the `PR Title`, `Summary`, `Verification Plan`, and the full list of `Planned Implementation Tasks` from the plan. This `ACTIVE_PR.md` is now the single source of truth for the current work cycle.
-    4.  **Execute TDD Cycles:** For each `Task` listed in `ACTIVE_PR.md`, the agent performs the full Red-Green-Refactor cycle.
-    5.  **Create Safety Checkpoint:** After each successful TDD cycle, the agent MUST run the full preflight check (e.g., `npm run preflight`) to ensure all tests pass, there are no type errors, and the code is linted. Once the preflight check is green, the agent creates a local micro-commit: `git add .` followed by `git commit -m "TDD: Implemented [task name]"`. This provides a safe rollback point.
-*   **Handoff via Tool:** After all tasks are complete, the `SWE Agent`'s final action is to call a `request_code_review()` tool. This tool's purpose is to signal to the Orchestrator that the implementation is ready for review. This is a blocking action that reliably ends the agent's turn.
+- **Agent:** `SWE Agent`
+- **Input:** The `[feature-name].plan.md` and the `pr_template.md`.
+- **Actions:**
+  1.  **Select Work:** Picks the next available `Pull Request #[Number]` from the plan.
+  2.  **Create Branch:** Creates a new, dedicated feature branch from the _latest_ `main` (e.g., `git checkout main && git pull && git checkout -b feature/pr-1-add-caching-service`).
+  3.  **Create Work Order:** Creates the `ACTIVE_PR.md` file from the `pr_template.md`. It populates this file by copying the `PR Title`, `Summary`, `Verification Plan`, and the full list of `Planned Implementation Tasks` from the plan. This `ACTIVE_PR.md` is now the single source of truth for the current work cycle.
+  4.  **Execute TDD Cycles:** For each `Task` listed in `ACTIVE_PR.md`, the agent performs the full Red-Green-Refactor cycle.
+  5.  **Create Safety Checkpoint:** After each successful TDD cycle, the agent MUST run the full preflight check (e.g., `npm run preflight`) to ensure all tests pass, there are no type errors, and the code is linted. Once the preflight check is green, the agent creates a local micro-commit: `git add .` followed by `git commit -m "TDD: Implemented [task name]"`. This provides a safe rollback point.
+- **Handoff via Tool:** After all tasks are complete, the `SWE Agent`'s final action is to call a `request_code_review()` tool. This tool's purpose is to signal to the Orchestrator that the implementation is ready for review. This is a blocking action that reliably ends the agent's turn.
 
 #### Phase 2: The Verification Cycle (Review & Refinement)
-*   **Agent:** `SWE Agent` (using the `request_code_review` tool)
-*   **Input:** The local feature branch.
-*   **Actions:**
-    1.  **Initiate Review:** The `SWE Agent` calls the `request_code_review()` tool.
-    2.  **Automated Review:** The tool script takes over:
-        a.  It runs `git diff main...HEAD` and saves the output to a temporary `PR_DIFF.txt` file.
-        b.  It invokes the Gemini CLI non-interactively, loading the `Code Review Agent`'s persona and providing the `@ACTIVE_PR.md` and `@PR_DIFF.txt` files as context.
-        c.  It captures the JSON output from the `Code Review Agent`.
-        d.  It cleans up the temporary diff file.
-    3.  **Process Feedback:** The `SWE Agent` receives the JSON directly as the tool's output.
-        *   If the `findings` array is empty, the PR is approved, and the process moves to Phase 3.
-        *   If comments exist, the `SWE Agent` makes the required code changes, commits them, and loops back to step 1 of this phase to request another review.
-*   **Output:** An approved set of changes on the local feature branch.
+
+- **Agent:** `SWE Agent` (using the `request_code_review` tool)
+- **Input:** The local feature branch.
+- **Actions:**
+  1.  **Initiate Review:** The `SWE Agent` calls the `request_code_review()` tool.
+  2.  **Automated Review:** The tool script takes over:
+      a. It runs `git diff main...HEAD` and saves the output to a temporary `PR_DIFF.txt` file.
+      b. It invokes the Gemini CLI non-interactively, loading the `Code Review Agent`'s persona and providing the `@ACTIVE_PR.md` and `@PR_DIFF.txt` files as context.
+      c. It captures the JSON output from the `Code Review Agent`.
+      d. It cleans up the temporary diff file.
+  3.  **Process Feedback:** The `SWE Agent` receives the JSON directly as the tool's output.
+      - If the `findings` array is empty, the PR is approved, and the process moves to Phase 3.
+      - If comments exist, the `SWE Agent` makes the required code changes, commits them, and loops back to step 1 of this phase to request another review.
+- **Output:** An approved set of changes on the local feature branch.
 
 #### Phase 3: The Finalization (Merge Preparation)
 
-*   **Agent:** `SWE Agent`
-*   **Input:** The approved feature branch, and the master `[feature-name].plan.md`.
-*   **Actions:**
-    1.  **Squash History:** The agent runs `git reset --soft $(git merge-base HEAD main)` to combine all incremental TDD and fix-up commits into a single, staged change.
-    2.  **Create Final Commit:** It creates one clean, final commit using the title from `ACTIVE_PR.md`: `git commit -m "feat: [PR Title]"`.
-    3.  **Update Plan:** It finds the corresponding PR in the master plan file and marks it as `[DONE]`, appending the final commit hash.
-    4.  **Cleanup:** It deletes the `ACTIVE_PR.md` file.
-*   **Output:** A clean local feature branch with a single, well-documented, and fully reviewed commit.
+- **Agent:** `SWE Agent`
+- **Input:** The approved feature branch, and the master `[feature-name].plan.md`.
+- **Actions:**
+  1.  **Squash History:** The agent runs `git reset --soft $(git merge-base HEAD main)` to combine all incremental TDD and fix-up commits into a single, staged change.
+  2.  **Create Final Commit:** It creates one clean, final commit using the title from `ACTIVE_PR.md`: `git commit -m "feat: [PR Title]"`.
+  3.  **Update Plan:** It finds the corresponding PR in the master plan file and marks it as `[DONE]`, appending the final commit hash.
+  4.  **Cleanup:** It deletes the `ACTIVE_PR.md` file.
+- **Output:** A clean local feature branch with a single, well-documented, and fully reviewed commit.
 
 ---
 
@@ -127,18 +126,16 @@ This separation of duties is a critical safety feature. The `SWE Agent`'s role i
 
 #### Handoff and Merge Process
 
-*   **Responsibility:** Human Developer or future Orchestrator Agent.
-*   **Actions:**
-    1.  Push the finalized feature branch to the remote repository (e.g., `git push origin feature/pr-1-add-caching-service`).
-    2.  Open a formal Pull Request in the Git hosting platform (e.g., GitHub).
-    3.  Monitor the CI pipeline for a successful run.
-    4.  Perform a final review.
-    5.  Merge the Pull Request into the `main` branch.
-    6.  Delete the remote feature branch.
+- **Responsibility:** Human Developer or future Orchestrator Agent.
+- **Actions:**
+  1.  Push the finalized feature branch to the remote repository (e.g., `git push origin feature/pr-1-add-caching-service`).
+  2.  Open a formal Pull Request in the Git hosting platform (e.g., GitHub).
+  3.  Monitor the CI pipeline for a successful run.
+  4.  Perform a final review.
+  5.  Merge the Pull Request into the `main` branch.
+  6.  Delete the remote feature branch.
 
 This process repeats for every PR in the plan, ensuring continuous integration and a healthy `main` branch.
-
-
 
 ---
 
@@ -151,8 +148,6 @@ The design of this multi-agent system is guided by a core philosophy aimed at en
 An LLM's reasoning process can be understood through an analogy with an Inertial Navigation System (INS). An INS can plot a highly accurate course over a short distance by making a series of complex calculations from a known starting point. However, each calculation introduces a tiny, unavoidable error. Over a long journey, these small errors accumulate, causing the system to "drift" significantly from its true position.
 
 Similarly, an LLM agent performs a series of reasoning steps to accomplish a task. As a statistical model, each step has a non-zero probability of error (`x%`). For a task requiring `N` sequential reasoning steps, the cumulative probability of at least one error occurring can be expressed as `E = (1 - (1 - x%)^N)`. As `N` increases, this probability `E` approaches 1, making failure almost certain for complex, long-running tasks.
-
-
 
 The critical failure point occurs when this accumulated "drift" pollutes the agent's context. Its internal understanding of the state of the world becomes incorrect, causing its subsequent predictions to be based on flawed premises, leading to a cascading failure from which it cannot recover.
 
@@ -175,13 +170,12 @@ To counteract this drift, our system is built on the principle of frequent, veri
 This leads to three foundational design principles:
 
 1.  **Every Automated Task Must Have a Verifiable Goal.** An agent's task must be defined by a concrete, measurable, and unambiguous goal. Success or failure should be a clear, objective state, not a matter of opinion.
-    *   *Example:* The goal "make the tests pass" is verifiable. The goal "refactor the code to be better" is not easily verifiable by a machine.
+    - _Example:_ The goal "make the tests pass" is verifiable. The goal "refactor the code to be better" is not easily verifiable by a machine.
 
 2.  **Agents Must Have Tools to Verify Their Own Progress.** The agent performing the work must have direct access to the tools that measure success for its given task. This empowers it to self-assess, iterate, and determine when its work is truly "done."
-    *   *Example:* The `SWE Agent` uses `npm run preflight` to verify that its code changes are valid and that the codebase is still healthy.
+    - _Example:_ The `SWE Agent` uses `npm run preflight` to verify that its code changes are valid and that the codebase is still healthy.
 
 3.  **Failure is a Signal About Scope, Not Just the Agent.** When an agent fails to reach its verifiable goal, it should not be seen merely as a flaw in the agent's reasoning. It is a fundamental signal that the goal itself was likely too large, complex, or ambiguous for a single, verifiable step. The system's response should be to **reduce the scope** and provide the agent with a smaller, more manageable, and still verifiable goal.
-
 
 #### Application in This Workflow
 
@@ -197,13 +191,13 @@ The solution is to shift from "Prompt Engineering" to "Tool Engineering" for con
 
 The tool's schema and description become a form of "in-line prompt," a structured and reliable way to inform the agent when a specific action is appropriate. This simplifies the main prompt, removing the need for complex conditional logic, and makes the agent's behavior more predictable.
 
-*   **Application:** The `SWE Agent` is not told to "wait for a review." It is told that the final step of its implementation task is to call the `request_code_review()` tool. This tool acts as a gate, explicitly ending the agent's turn and signaling the Orchestrator to begin the next phase. This is an architecturally sound and reliable method for managing state transitions.
+- **Application:** The `SWE Agent` is not told to "wait for a review." It is told that the final step of its implementation task is to call the `request_code_review()` tool. This tool acts as a gate, explicitly ending the agent's turn and signaling the Orchestrator to begin the next phase. This is an architecturally sound and reliable method for managing state transitions.
 
 ##### Principle: Separation of Concerns
 
-*   **The `Plan Agent` and Human Reviewer (The "Mission Planners"):** They perform the complex, creative work of breaking a large feature into a series of small, verifiable TDD steps. The human review of this plan acts as the primary "upfront" verification of the overall strategy.
-*   **The `SWE Agent` (The "Executor"):** Its role is to execute one small, pre-verified step at a time. Its goal is simple and verifiable: make the test for the current step pass, and ensure the entire system remains healthy via `npm run preflight`. This minimizes the "drift" by making `N` (the number of steps between verifications) as small as possible.
-*   **The `Code Review Agent` (The "Quality Inspector"):** It provides the final, higher-level verification, ensuring the implemented code not only works but is also well-designed and meets the overall goals of the PR.
+- **The `Plan Agent` and Human Reviewer (The "Mission Planners"):** They perform the complex, creative work of breaking a large feature into a series of small, verifiable TDD steps. The human review of this plan acts as the primary "upfront" verification of the overall strategy.
+- **The `SWE Agent` (The "Executor"):** Its role is to execute one small, pre-verified step at a time. Its goal is simple and verifiable: make the test for the current step pass, and ensure the entire system remains healthy via `npm run preflight`. This minimizes the "drift" by making `N` (the number of steps between verifications) as small as possible.
+- **The `Code Review Agent` (The "Quality Inspector"):** It provides the final, higher-level verification, ensuring the implemented code not only works but is also well-designed and meets the overall goals of the PR.
 
 By adhering to this model, we create a system that is more robust, predictable, and easier to debug, turning the inherent statistical nature of LLMs into a manageable engineering challenge.
 

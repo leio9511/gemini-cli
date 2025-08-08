@@ -132,8 +132,9 @@ ${reason.stack}`
 
 export async function main() {
   setupUnhandledRejectionHandler();
+  const argv = await parseArguments();
   const workspaceRoot = process.cwd();
-  const settings = loadSettings(workspaceRoot);
+  const settings = loadSettings(workspaceRoot, argv.configFile);
 
   await cleanupCheckpoints();
   if (settings.errors.length > 0) {
@@ -148,7 +149,6 @@ export async function main() {
     process.exit(1);
   }
 
-  const argv = await parseArguments();
   const extensions = loadExtensions(workspaceRoot);
   const config = await loadCliConfig(
     settings.merged,
