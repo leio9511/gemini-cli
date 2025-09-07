@@ -2,9 +2,10 @@
 
 This plan addresses bugs and implementation discrepancies identified during a review of the SWE Agent against its design document (`docs/designs/swe-agent-workflow.md`). The goal is to improve the agent's reliability and fully align it with the specified architecture.
 
+
 ## Phase 1: Core Bug Fixes and Feature Implementation
 
-### Pull Request #1: Fix Finalization Bug Preventing Workflow Completion
+### Pull Request #1: Fix Finalization Bug Preventing Workflow Completion [DONE] 2c5720ee
 
 - **PR Title:** `fix(swe-agent): Save commit hash during finalization to prevent stall`
 - **Summary:** This PR fixes a critical bug where the agent stalls after squashing commits. The `submit_work` tool correctly verifies the squashed commit but fails to save the commit hash to the orchestration state. The `get_task` tool requires this hash to proceed to the next step (updating the master plan). This change ensures the hash is saved, allowing the workflow to complete.
