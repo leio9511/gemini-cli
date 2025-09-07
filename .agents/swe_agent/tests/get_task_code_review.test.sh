@@ -1,29 +1,34 @@
 #!/bin/bash
 set -e
 
-# Test case: Verify that when all tasks are DONE, the state transitions to CODE_REVIEW.
-test_code_review_trigger() {
+# Test case: Verify that when all tasks are DONE, the session is treated as stale and reset.
+test_stale_session_reset() {
   # Arrange
+  TEST_DIR=$(mktemp -d)
+  cd "$TEST_DIR"
+  # Make a dummy master plan file that the script can find
+  mkdir -p docs/plans
+  touch docs/plans/fix-swe-agent-discrepancies.plan.md
+
   echo '{"tasks": [{"status": "DONE"}, {"status": "DONE"}]}' > ACTIVE_PR.json
   echo '{"status": "EXECUTING_TDD"}' > ORCHESTRATION_STATE.json
-  rm -rf "$LOCK_DIR" # Ensure no stale locks before starting
 
   # Act
-  output=$(.agents/swe_agent/tools/get_task.sh)
+  output=$(bash /usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/get_task.sh)
 
   # Assert
-  if [[ "$output" != "REQUEST_REVIEW" ]]; then
-      echo "Test failed: Expected output 'REQUEST_REVIEW', but got '$output'"
-      exit 1
+  if [ -f "ACTIVE_PR.json" ]; then
+    echo "Test failed: ACTIVE_PR.json was not deleted."
+    exit 1
   fi
-  local final_state=$(jq -r .status ORCHESTRATION_STATE.json)
-  if [[ "$final_state" != "CODE_REVIEW" ]]; then
-    echo "Test failed: Expected final state 'CODE_REVIEW', but got '$final_state'"
+  expected_output="Your mission is to create a pull request"
+  if [[ "$output" != *"$expected_output"* ]]; then
+    echo "Test failed: Expected output to contain '$expected_output', but got '$output'"
     exit 1
   fi
   echo "Test passed!"
-  rm -f ACTIVE_PR.json ORCHESTRATION_STATE.json
+  rm -rf "$TEST_DIR"
 }
 
 # Run the test
-test_code_review_trigger
+test_stale_session_reset

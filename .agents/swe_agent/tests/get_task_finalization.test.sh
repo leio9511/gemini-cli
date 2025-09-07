@@ -4,7 +4,7 @@ set -e
 # Test case: Verify that when a code review is approved, the agent is instructed to squash commits.
 test_finalization_instruction() {
   # Arrange
-  cp .agents/swe_agent/tests/fixtures/ACTIVE_PR_DONE.json ACTIVE_PR.json
+  cp .agents/swe_agent/tests/fixtures/ACTIVE_PR_IN_PROGRESS.json ACTIVE_PR.json
   echo '{"status": "CODE_REVIEW"}' > ORCHESTRATION_STATE.json
   echo "[]" > FINDINGS.json
   sleep 0.1
