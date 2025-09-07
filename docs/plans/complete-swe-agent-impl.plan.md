@@ -109,9 +109,10 @@ The proposed design is to follow the existing design document (`@docs/designs/sw
 
 #### **Phase 3: Implement Finalization and Loop Continuation**
 
+
 **Goal:** To implement the final phase of the workflow, where the work is committed and the agent prepares for the next cycle.
 
-**Pull Request #3: feat(swe-agent): Implement finalization and loop continuation**
+**Pull Request #3: feat(swe-agent): Implement finalization and loop continuation** [DONE] eccd0c60
 
 - **Summary:** This PR adds the logic for squashing commits, updating the master plan, and resetting the state for the next PR.
 - **Verification Plan:** New unit tests will verify the final state transitions and git command instructions.
