@@ -2,7 +2,13 @@
 set -e
 set -x
 
-source .agents/swe_agent/utils.sh
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+
+if [ -n "$1" ]; then
+  cd "$1"
+fi
+
+source "$SCRIPT_DIR/../utils.sh"
 
 MAX_DEBUG_ATTEMPTS=3
 
@@ -41,13 +47,23 @@ if [ "$status" == "DEBUGGING" ]; then
   fi
 fi
 
-if [ "$status" == "CODE_REVIEW" ] && [ -f "findings.json" ] && [ "$(jq 'length' findings.json)" -eq 0 ]; then
+if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' FINDINGS.json)" -eq 0 ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
     write_state "status" "AWAITING_FINALIZATION"
     release_lock
     trap - EXIT INT TERM
-    echo "SQUASH_COMMITS"
+    echo "Code review approved. Please squash your commits and submit the final commit hash."
+    exit 0
+fi
+
+if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_hash")" ]; then
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "status" "FINALIZE_COMPLETE"
+    release_lock
+    trap - EXIT INT TERM
+    echo "Please update the master plan."
     exit 0
 fi
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 
 if ! command -v jq &> /dev/null
 then
@@ -13,7 +14,8 @@ if [ ! -f "ACTIVE_PR.json" ]; then
 fi
 
 
-source .agents/swe_agent/utils.sh
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+source "$SCRIPT_DIR/../utils.sh"
 
 handle_initializing_state() {
   write_state "status" "EXECUTING_TDD"
@@ -26,6 +28,16 @@ handle_code_review_state() {
     jq -s '.[0] * {tasks: .[0].tasks + .[1]}' ACTIVE_PR.json "$findings_file" > tmp.json && mv tmp.json ACTIVE_PR.json
     write_state "status" "EXECUTING_TDD"
   fi
+}
+
+
+handle_awaiting_finalization_state() {
+    commit_hash=$1
+    # A squashed commit should have exactly one parent.
+    parent_count=$(git rev-list --max-parents=1 "$commit_hash" | wc -l)
+    if [ "$parent_count" == "1" ]; then
+        echo "VERIFIED"
+    fi
 }
 
 enter_debugging_state() {
@@ -43,6 +55,15 @@ case "$status" in
     ;;
   "CODE_REVIEW")
     handle_code_review_state "$1"
+    ;;
+  "AWAITING_FINALIZATION")
+    handle_awaiting_finalization_state "$2"
+    exit 0
+    ;;
+  "FINALIZE_COMPLETE")
+    rm -f ACTIVE_PR.json
+    write_state "status" "INITIALIZING"
+    exit 0
     ;;
 esac
 
