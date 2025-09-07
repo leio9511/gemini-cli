@@ -36,11 +36,12 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
     - [ ] **Assertion:** Assert that the output of `get_task.sh` is an instruction for the agent to create a safety checkpoint commit.
     - [ ] **Implementation (Green):** In `tools/get_task.sh`, add logic to inspect the *last* completed task. If its type was `GREEN` or `REFACTOR`, return the commit instruction. This requires adding a `last_completed_step` field to `ORCHESTRATION_STATE.json` from the `submit_work.sh` script.
 
+
 ---
 
 ## Phase 2: Implement Robust TDD Verification and Tool-Gating
 
-### Pull Request #2: feat(swe-agent): Implement NEEDS_ANALYSIS workflow and tool-gating
+### Pull Request #2: feat(swe-agent): Implement NEEDS_ANALYSIS workflow and tool-gating [DONE] 556cf0a9a5b6b2c9bec27984b4e69ae67c401bfe
 
 - **PR Title:** feat(swe-agent): Implement NEEDS_ANALYSIS workflow and tool-gating
 - **Summary:** This PR implements the `NEEDS_ANALYSIS` workflow in `submit_work.sh` to ensure the agent properly verifies failing TDD steps. It also enforces the "Nudge and Unlock" protocol by adding the specified `debug_attempt_counter` lock to the `escalate_for_external_help.sh` tool.
