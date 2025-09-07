@@ -22,6 +22,16 @@ Once you have identified the pull request, you must create a new file called \`A
 The \`ACTIVE_PR.json\` file should be in the following format:
 ..."
 
+# Check for stale session.
+if [ -f "ACTIVE_PR.json" ]; then
+  # If all tasks are done, this is a stale session.
+  if ! jq -e '.tasks[] | select(.status!="DONE")' ACTIVE_PR.json > /dev/null; then
+    rm ACTIVE_PR.json
+    echo "$INITIALIZATION_INSTRUCTION"
+    exit 0
+  fi
+fi
+
 # If no active PR file exists, the first step is to create one.
 if [ ! -f "ACTIVE_PR.json" ]; then
   echo "$INITIALIZATION_INSTRUCTION"
@@ -108,9 +118,3 @@ case "$has_todo_tasks" in
     exit 0
     ;;
 esac
-
-
-
-
-
-
