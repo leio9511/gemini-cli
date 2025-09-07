@@ -21,7 +21,7 @@ This plan addresses bugs and implementation discrepancies identified during a re
   - [ ] Task: Inside this function, after the squash is successfully verified, add a call to `write_state "last_commit_hash" "$commit_hash"` to save the verified hash.
   - [ ] Task: Run the new test and ensure it passes.
 
-### Pull Request #2: Implement Dynamic "Nudge" Guidance in Debugging
+### Pull Request #2: Implement Dynamic "Nudge" Guidance in Debugging [DONE] 930815ca
 
 - **PR Title:** `feat(swe-agent): Implement dynamic nudge guidance for debugging`
 - **Summary:** This PR implements the "Nudge and Unlock" protocol as described in the design document. Currently, the agent receives the same static advice regardless of how many times it has failed. This change introduces dynamic guidance that changes based on the `debug_attempt_counter`, providing more sophisticated strategic advice to the agent.
