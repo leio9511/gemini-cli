@@ -21,10 +21,17 @@ EOL
 touch ACTIVE_PR.json
 
 # Mock the git command
-git() {
+mkdir bin
+cat > bin/git <<EOL
+#!/bin/bash
+if [ "\$1" == "rev-list" ]; then
+  echo "1"
+else
   echo "mock_hash"
-}
-export -f git
+fi
+EOL
+chmod +x bin/git
+export PATH=$(pwd)/bin:$PATH
 
 # Path to the script to be tested
 submit_work_script_path="/usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/submit_work.sh"
@@ -33,7 +40,7 @@ submit_work_script_path="/usr/local/google/home/lychen/Projects/gemini-cli/.agen
 bash "$submit_work_script_path" "Finalized PR" "mock_hash"
 
 # Check the output
-if ! grep -q '"last_commit_hash": "mock_hash"' ORCHESTRATION_STATE.json; then
+if ! jq -e '.last_commit_hash == "mock_hash"' ORCHESTRATION_STATE.json > /dev/null; then
   echo "Test Failed: last_commit_hash was not found in ORCHESTRATION_STATE.json"
   exit 1
 fi
