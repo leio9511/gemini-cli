@@ -193,6 +193,40 @@ The tool's schema and description become a form of "in-line prompt," a structure
 
 - **Application:** The `SWE Agent` is not told to "wait for a review." It is told that the final step of its implementation task is to call the `request_code_review()` tool. This tool acts as a gate, explicitly ending the agent's turn and signaling the Orchestrator to begin the next phase. This is an architecturally sound and reliable method for managing state transitions.
 
+---
+
+#### Case Study: Evolving the Plan Agent for Reliability
+
+Our experience designing a sophisticated `Plan Agent` provides a real-world validation of this principle.
+
+##### **Phase 1: The Initial "Monolithic Prompt" Approach**
+
+We began with a design that, while logical on the surface, was fundamentally flawed.
+
+- **The Design:** We created a single, comprehensive prompt that contained a detailed, 5-step list of instructions for the agent (understand context, analyze codebase, create detailed design, etc.).
+
+- **Observed Behavior (The Problem):** When the agent was given this monolithic prompt, it exhibited what we identified as **"runaway execution."** As a statistical model optimized to find the most efficient path to a goal, it did not treat our 5 steps as a mandatory, sequential process. Instead, it saw the final goal—"create a plan"—and took a shortcut. It would perform a superficial analysis and then jump directly to generating a simplified version of the final output, skipping the crucial intermediate steps.
+
+- **The Result:** The generated plan was shallow, incomplete, and not sufficiently grounded in the project's reality.
+
+##### **Phase 2: The Pivot to "Tool-Gated State Transitions"**
+
+The failure of the monolithic prompt led us to a critical insight: **an agent's control flow must be managed by its tools.** We redesigned the system from the ground up based on this principle.
+
+- **The New Design:**
+  1.  We created a simple **orchestrator tool** with two functions: `initialize_plan` and `get_next_step`. This tool became the sole keeper of the workflow's state.
+  2.  We broke the monolithic prompt into five small, single-purpose **prompt templates**, one for each step.
+  3.  We rewrote the agent's main prompt to be incredibly simple. It no longer contains the 5-step plan. Instead, it instructs the agent to follow a simple, continuous loop:
+      - Call a tool (`initialize_plan` or `get_next_step`) to get instructions.
+      - Execute those instructions (which involves its own analysis and tool calls like `read_file` and `safe_patch`).
+      - Repeat.
+
+- **The Result:** This architecture directly solves the "runaway execution" problem. The agent **cannot** jump to Step 3 because it doesn't even know what Step 3 is. The only way it can get the instructions for the next phase is by successfully completing the current phase and calling the `get_next_step` tool. The tool acts as an explicit, non-negotiable **gate** between each step, forcing the agent to follow the desired sequence and build the plan progressively.
+
+This journey proved that for complex, multi-step tasks, prompt engineering is not about creating a single, perfect set of instructions. It's about designing a robust, tool-driven system that breaks the problem down and uses verifiable checkpoints to ensure a reliable and high-quality outcome.
+
+---
+
 ##### Principle: Separation of Concerns
 
 - **The `Plan Agent` and Human Reviewer (The "Mission Planners"):** They perform the complex, creative work of breaking a large feature into a series of small, verifiable TDD steps. The human review of this plan acts as the primary "upfront" verification of the overall strategy.

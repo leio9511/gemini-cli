@@ -14,7 +14,6 @@ This document outlines the plan to introduce a new command-line flag, `--config-
 
 The implementation for this feature is small and self-contained. It can be delivered in a single Pull Request.
 
-
 ---
 
 #### **Phase 1: Core Feature Implementation** [DONE] 38dd8ba4

@@ -1,0 +1,11 @@
+{
+  "contextFileName": ["GEMINI.md", "swe-v1_agent.prompt.md"],
+  "mcpServers": {
+    "amu_server": {
+      "httpUrl": "http://127.0.0.1:8000/mcp"
+    }
+  },
+  "logSafePatchFailureFolder": "/tmp/safe_patch",
+  "toolDiscoveryCommand": ".agents/swe-v1_agent/tools/discover.sh",
+  "toolCallCommand": ".agents/swe-v1_agent/tools/run.sh"
+}

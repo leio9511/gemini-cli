@@ -1,10 +1,10 @@
 #!/bin/bash
-# .agents/swe_agent/tools/request_code_review.sh
+# .agents/swe-v1_agent/tools/request_code_review.sh
 
 # 1. Define file paths and the gemini command
 DIFF_FILE="PR_DIFF.txt"
 REVIEW_SETTINGS_FILE=".agents/code_review_agent/settings.json"
-SPEC_FILE="ACTIVE_PR.json"
+SPEC_FILE="ACTIVE_PR.md"
 DEFAULT_SETTINGS_FILE=".gemini/settings.json"
 GEMINI_CLI="gemini"
 
@@ -23,10 +23,10 @@ fi
 #    This prompt invokes the agent's `perform_code_review` capability.
 PROMPT="perform_code_review"
 
-
-
 # 4. Run the Code Review Agent and capture its JSON output.
 #    Temporarily set the default settings to the review agent's settings.
+#    ln -sf "../$REVIEW_SETTINGS_FILE" "$DEFAULT_SETTINGS_FILE"
+#    REVIEW_RESULT=$($GEMINI_CLI -p "$PROMPT")
 REVIEW_RESULT=$($GEMINI_CLI --cf "$REVIEW_SETTINGS_FILE" -p "$PROMPT")
 
 # 5. Clean up the temporary diff file

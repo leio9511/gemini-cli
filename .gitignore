@@ -44,3 +44,7 @@ packages/vscode-ide-companion/*.vsix
 /ACTIVE_PR.md
 /REVIEW_COMMENTS.md
 packages/vscode-ide-companion/*.vsix
+
+error.log
+output.log
+test_output.txt
