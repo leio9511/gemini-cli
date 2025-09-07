@@ -10,17 +10,22 @@ fi
 
 source "$SCRIPT_DIR/../utils.sh"
 
+
+
 MAX_DEBUG_ATTEMPTS=3
 
+INITIALIZATION_INSTRUCTION="Your mission is to create a pull request that implements the plan.
 
-# If ACTIVE_PR.json exists, check if it's a stale session (all tasks are DONE).
-if [ -f "ACTIVE_PR.json" ]; then
-    :
-fi
+First, you must read the plan file and select the next pull request to implement.
+
+Once you have identified the pull request, you must create a new file called \`ACTIVE_PR.json\` that contains the title, summary, and implementation tasks for the pull request.
+
+The \`ACTIVE_PR.json\` file should be in the following format:
+..."
 
 # If no active PR file exists, the first step is to create one.
 if [ ! -f "ACTIVE_PR.json" ]; then
-  echo "CREATE_PR"
+  echo "$INITIALIZATION_INSTRUCTION"
   exit 0
 fi
 
@@ -47,6 +52,17 @@ if [ "$status" == "DEBUGGING" ]; then
   fi
 fi
 
+last_completed_step=$(read_state "last_completed_step")
+if [ "$last_completed_step" == "GREEN" ] || [ "$last_completed_step" == "REFACTOR" ]; then
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "last_completed_step" "" # Clear the last completed step
+    release_lock
+    trap - EXIT INT TERM
+    echo "You have just completed a TDD step. This is a good time to create a safety checkpoint commit."
+    exit 0
+fi
+
 if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' FINDINGS.json)" -eq 0 ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
@@ -67,22 +83,39 @@ if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_h
     exit 0
 fi
 
-# Check for the next task to execute.
-if jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /dev/null; then
-  echo "EXECUTE_TASK"
-  exit 0
-fi
 
-# If all tasks are done, transition to the code review state.
-if ! jq -e '.tasks[] | select(.status!="DONE")' ACTIVE_PR.json > /dev/null; then
-    acquire_lock
-    trap 'release_lock' EXIT INT TERM
-    write_state "status" "CODE_REVIEW"
-    release_lock
-    trap - EXIT INT TERM
-    echo "REQUEST_REVIEW"
-    exit 0
-fi
+
+
+# Check for the next task to execute.
+has_todo_tasks=$(jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /dev/null && echo "true" || echo "false")
+
+case "$has_todo_tasks" in
+  "true")
+    task_description=$(jq -r '(.tasks[] | select(.status=="TODO")).description' ACTIVE_PR.json | head -n 1)
+    echo "Your goal is to complete the next TDD step: $task_description"
+    ;;
+  "false")
+    status=$(read_state "status")
+    if [ "$status" == "EXECUTING_TDD" ]; then
+      rm ACTIVE_PR.json
+      echo "$INITIALIZATION_INSTRUCTION"
+    else
+      acquire_lock
+      trap 'release_lock' EXIT INT TERM
+      write_state "status" "CODE_REVIEW"
+      release_lock
+      trap - EXIT INT TERM
+      echo "REQUEST_REVIEW"
+    fi
+    ;;
+esac
+
 
 echo "Error: Unhandled state in get_task.sh" >&2
 exit 1
+
+
+
+
+
+
