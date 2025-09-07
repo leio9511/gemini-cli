@@ -35,6 +35,7 @@ handle_awaiting_finalization_state() {
     # A squashed commit should have exactly one parent.
     parent_count=$(git rev-list --max-parents=1 "$commit_hash" | wc -l)
     if [ "$parent_count" == "1" ]; then
+        write_state "last_commit_hash" "$commit_hash"
         echo "VERIFIED"
     fi
 }
@@ -88,7 +89,7 @@ if [ -z "$test_command" ]; then
 fi
 
 set +e
-(eval "$test_command" > >(tee output.log) 2> >(tee error.log >&2))
+(eval "$test_command" > output.log 2> error.log)
 exit_code=$?
 set -e
 if [ "$exit_code" -eq 0 ] && [ "$expectation" == "FAIL" ]; then
