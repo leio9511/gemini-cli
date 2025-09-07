@@ -19,7 +19,11 @@ release_lock() {
 # Reads a value from the state file.
 read_state() {
   if [ -f "ORCHESTRATION_STATE.json" ]; then
-    jq -r ".$1" ORCHESTRATION_STATE.json
+    if jq -e ".$1" ORCHESTRATION_STATE.json > /dev/null; then
+      jq -r ".$1" ORCHESTRATION_STATE.json
+    else
+      echo "null"
+    fi
   fi
 }
 

@@ -47,6 +47,15 @@ enter_debugging_state() {
   write_state "debug_attempt_counter" "$new_attempts"
 }
 
+handle_awaiting_analysis_state() {
+  analysis_decision=$1
+  if [ "$analysis_decision" == "SUCCESS" ]; then
+    # Mark the current TDD step as DONE
+    jq '(.tasks[] | select(.status=="TODO") | .tdd_steps[] | select(.status=="TODO")).status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
+    write_state "status" "EXECUTING_TDD"
+  fi
+}
+
 status=$(read_state "status")
 
 case "$status" in
@@ -64,6 +73,9 @@ case "$status" in
     rm -f ACTIVE_PR.json
     write_state "status" "INITIALIZING"
     exit 0
+    ;;
+  "AWAITING_ANALYSIS")
+    handle_awaiting_analysis_state "$1"
     ;;
 esac
 
@@ -84,6 +96,7 @@ exit_code=$?
 set -e
 if [ "$exit_code" -eq 0 ] && [ "$expectation" == "FAIL" ]; then
   enter_debugging_state
+  echo '{"status": "NEEDS_ANALYSIS"}'
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "PASS" ]; then
   enter_debugging_state
 else
