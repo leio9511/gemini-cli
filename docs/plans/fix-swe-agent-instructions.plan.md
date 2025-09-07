@@ -4,9 +4,10 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
 
 ---
 
+
 ## Phase 1: Restore "Mission Briefer" Capabilities to `get_task.sh`
 
-### Pull Request #1: feat(swe-agent): Implement full instructional logic in get_task
+### Pull Request #1: feat(swe-agent): Implement full instructional logic in get_task [DONE] b361b7ebe4a693a549b2ac9c64ea5ac7d780b96e
 
 - **PR Title:** feat(swe-agent): Implement full instructional logic in get_task
 - **Summary:** This PR refactors `get_task.sh` to replace simple command outputs (`CREATE_PR`, `EXECUTE_TASK`) with the detailed, natural-language instructions specified in the design document. It also implements missing session management and TDD safety checkpoint logic to improve workflow robustness.
