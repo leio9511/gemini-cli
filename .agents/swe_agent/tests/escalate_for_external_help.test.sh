@@ -2,13 +2,17 @@
 
 source .agents/swe_agent/utils.sh
 
+
 test_halt_signal() {
   # Arrange
+  write_state "debug_attempt_counter" 3
   report="Test report"
 
   # Act
+  set +e
   output=$(.agents/swe_agent/tools/escalate_for_external_help.sh "$report")
   exit_code=$?
+  set -e
 
   # Assert
   if [[ "$output" != "$report" ]]; then

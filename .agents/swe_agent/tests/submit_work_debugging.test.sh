@@ -1,7 +1,17 @@
 #!/bin/bash
 set -e
 
-source .agents/swe_agent/utils.sh
+# Reads a value from the state file.
+read_state() {
+  if [ -f "ORCHESTRATION_STATE.json" ]; then
+    if jq -e ".$1" ORCHESTRATION_STATE.json > /dev/null; then
+      jq -r ".$1" ORCHESTRATION_STATE.json
+    else
+      echo "null"
+    fi
+  fi
+}
+
 
 # Test case: Verify that when a PASS expectation fails, the state transitions to DEBUGGING.
 test_debugging_transition_on_unexpected_fail() {
@@ -10,7 +20,7 @@ test_debugging_transition_on_unexpected_fail() {
   cp .agents/swe_agent/tests/fixtures/ORCHESTRATION_STATE.json .
 
   # Act
-  .agents/swe_agent/tools/submit_work.sh "" "exit 1" "PASS"
+  .agents/swe_agent/tools/submit_work.sh "exit 1" "PASS"
 
   # Assert
   local final_state=$(read_state "status")
@@ -38,7 +48,7 @@ test_debugging_transition_on_unexpected_pass() {
   cp .agents/swe_agent/tests/fixtures/ORCHESTRATION_STATE.json .
 
   # Act
-  .agents/swe_agent/tools/submit_work.sh "" "exit 0" "FAIL"
+  .agents/swe_agent/tools/submit_work.sh "exit 0" "FAIL"
 
   # Assert
   local final_state=$(read_state "status")

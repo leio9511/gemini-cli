@@ -40,7 +40,14 @@ write_state() {
     echo "{}" > ORCHESTRATION_STATE.json
   fi
 
-  if jq ".$1 = \"$2\"" ORCHESTRATION_STATE.json > "$tmp_file"; then
+  # Check if the value is a number
+  if [[ $2 =~ ^[0-9]+$ ]]; then
+    jq_expr=".$1 = $2"
+  else
+    jq_expr=".$1 = \"$2\""
+  fi
+
+  if jq "$jq_expr" ORCHESTRATION_STATE.json > "$tmp_file"; then
     mv "$tmp_file" ORCHESTRATION_STATE.json
   else
     echo "Error: jq command failed while writing state." >&2

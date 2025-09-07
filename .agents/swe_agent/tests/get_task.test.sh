@@ -1,8 +1,15 @@
 #!/bin/bash
 set -e
-set -x
 
-source ".agents/swe_agent/tools/get_task.sh"
+INITIALIZATION_INSTRUCTION="Your mission is to create a pull request that implements the plan.
+
+First, you must read the plan file and select the next pull request to implement.
+
+Once you have identified the pull request, you must create a new file called \`ACTIVE_PR.json\` that contains the title, summary, and implementation tasks for the pull request.
+
+The \`ACTIVE_PR.json\` file should be in the following format:
+..."
+
 
 # Test case: Verify that when all tasks are DONE, the state transitions to CODE_REVIEW.
 test_code_review_trigger() {
@@ -67,26 +74,6 @@ test_tdd_execution_instruction() {
 }
 test_tdd_execution_instruction
 
- test_session_cleanup_on_tdd_completion() {
-   # Arrange
-   echo '{"tasks": [{"status": "DONE"}, {"status": "DONE"}]}' > ACTIVE_PR.json
-   echo '{"status": "EXECUTING_TDD"}' > ORCHESTRATION_STATE.json # This is the key to triggering the cleanup
- 
-   # Act
-   output=$(.agents/swe_agent/tools/get_task.sh)
- 
-   # Assert
-   if [ -f "ACTIVE_PR.json" ]; then
-     echo "Test failed: ACTIVE_PR.json was not deleted."
-     exit 1
-   fi
-   if [[ "$output" != "$INITIALIZATION_INSTRUCTION" ]]; then
-       echo "Test failed: Expected output '$INITIALIZATION_INSTRUCTION', but got '$output'"
-       exit 1
-   fi
-   echo "Test passed!"
- }
- test_session_cleanup_on_tdd_completion
 test_safety_checkpoint_instruction() {
   # Arrange
   echo '{"tasks": [{"status": "DONE"}, {"status": "TODO"}]}' > ACTIVE_PR.json

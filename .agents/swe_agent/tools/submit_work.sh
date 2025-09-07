@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 if ! command -v jq &> /dev/null
 then
@@ -51,7 +50,7 @@ handle_awaiting_analysis_state() {
   analysis_decision=$1
   if [ "$analysis_decision" == "SUCCESS" ]; then
     # Mark the current TDD step as DONE
-    jq '(.tasks[] | select(.status=="TODO") | .tdd_steps[] | select(.status=="TODO")).status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
+    jq '(.tasks[] | .tdd_steps[] | select(.status=="TODO")).status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
     write_state "status" "EXECUTING_TDD"
   fi
 }
@@ -76,12 +75,10 @@ case "$status" in
     ;;
   "AWAITING_ANALYSIS")
     handle_awaiting_analysis_state "$1"
+    exit 0
     ;;
 esac
 
-if [ "$status" != "INITIALIZING" ]; then
-  shift
-fi
 test_command=$1
 expectation=$2
 
@@ -95,10 +92,11 @@ set +e
 exit_code=$?
 set -e
 if [ "$exit_code" -eq 0 ] && [ "$expectation" == "FAIL" ]; then
-  enter_debugging_state
-  echo '{"status": "NEEDS_ANALYSIS"}'
+  enter_debugging_state 
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "PASS" ]; then
   enter_debugging_state
+elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
+  echo '{"status": "NEEDS_ANALYSIS"}'
 else
   # Run preflight checks for tasks that are expected to pass to ensure code quality.
   if [ "$expectation" == "PASS" ]; then

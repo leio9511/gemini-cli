@@ -6,15 +6,16 @@ test_finalization_instruction() {
   # Arrange
   cp .agents/swe_agent/tests/fixtures/ACTIVE_PR_DONE.json ACTIVE_PR.json
   echo '{"status": "CODE_REVIEW"}' > ORCHESTRATION_STATE.json
-  echo "[]" > findings.json
+  echo "[]" > FINDINGS.json
   sleep 0.1
 
   # Act
   output=$(.agents/swe_agent/tools/get_task.sh)
 
   # Assert
-  if [[ "$output" != "SQUASH_COMMITS" ]]; then
-    echo "Test failed: Expected output 'SQUASH_COMMITS', but got '$output'"
+  expected_output="Code review approved. Please squash your commits and submit the final commit hash."
+  if [[ "$output" != "$expected_output" ]]; then
+    echo "Test failed: Expected output '$expected_output', but got '$output'"
     exit 1
   fi
   local final_state=$(jq -r .status ORCHESTRATION_STATE.json)
@@ -23,7 +24,7 @@ test_finalization_instruction() {
     exit 1
   fi
   echo "Test passed!"
-  rm -f ACTIVE_PR.json ORCHESTRATION_STATE.json findings.json
+  rm -f ACTIVE_PR.json ORCHESTRATION_STATE.json FINDINGS.json
 }
 
 # Run the test

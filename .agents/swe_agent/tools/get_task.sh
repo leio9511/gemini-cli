@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
@@ -52,17 +51,6 @@ if [ "$status" == "DEBUGGING" ]; then
   fi
 fi
 
-last_completed_step=$(read_state "last_completed_step")
-if [ "$last_completed_step" == "GREEN" ] || [ "$last_completed_step" == "REFACTOR" ]; then
-    acquire_lock
-    trap 'release_lock' EXIT INT TERM
-    write_state "last_completed_step" "" # Clear the last completed step
-    release_lock
-    trap - EXIT INT TERM
-    echo "You have just completed a TDD step. This is a good time to create a safety checkpoint commit."
-    exit 0
-fi
-
 if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' FINDINGS.json)" -eq 0 ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
@@ -83,8 +71,16 @@ if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_h
     exit 0
 fi
 
-
-
+last_completed_step=$(read_state "last_completed_step")
+if [ "$last_completed_step" == "GREEN" ] || [ "$last_completed_step" == "REFACTOR" ]; then
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "last_completed_step" "" # Clear the last completed step
+    release_lock
+    trap - EXIT INT TERM
+    echo "You have just completed a TDD step. This is a good time to create a safety checkpoint commit."
+    exit 0
+fi
 
 # Check for the next task to execute.
 has_todo_tasks=$(jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /dev/null && echo "true" || echo "false")
@@ -92,27 +88,19 @@ has_todo_tasks=$(jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /de
 case "$has_todo_tasks" in
   "true")
     task_description=$(jq -r '(.tasks[] | select(.status=="TODO")).description' ACTIVE_PR.json | head -n 1)
-    echo "Your goal is to complete the next TDD step: $task_description"
+    echo "Your goal is to complete the next TDD step: ${task_description}"
+    exit 0
     ;;
   "false")
-    status=$(read_state "status")
-    if [ "$status" == "EXECUTING_TDD" ]; then
-      rm ACTIVE_PR.json
-      echo "$INITIALIZATION_INSTRUCTION"
-    else
-      acquire_lock
-      trap 'release_lock' EXIT INT TERM
-      write_state "status" "CODE_REVIEW"
-      release_lock
-      trap - EXIT INT TERM
-      echo "REQUEST_REVIEW"
-    fi
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "status" "CODE_REVIEW"
+    release_lock
+    trap - EXIT INT TERM
+    echo "REQUEST_REVIEW"
+    exit 0
     ;;
 esac
-
-
-echo "Error: Unhandled state in get_task.sh" >&2
-exit 1
 
 
 
