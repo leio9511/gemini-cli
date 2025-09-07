@@ -42,12 +42,19 @@ status=$(read_state "status")
 if [ "$status" == "DEBUGGING" ]; then
   debug_attempt_counter=$(read_state "debug_attempt_counter")
   error_log=$(cat error.log)
+  HYPOTHESIZE_MAX_ATTEMPTS=2
+  INSTRUMENTATION_MAX_ATTEMPTS=5
+
   echo "DEBUGGING"
   echo "Error log:"
   echo "$error_log"
   echo "Strategic guidance:"
-  if [ "$debug_attempt_counter" -lt "$MAX_DEBUG_ATTEMPTS" ]; then
-    echo "You have made $debug_attempt_counter debugging attempts. You can request scope reduction after $MAX_DEBUG_ATTEMPTS attempts."
+  if [ "$debug_attempt_counter" -le "$HYPOTHESIZE_MAX_ATTEMPTS" ]; then
+    echo "Hypothesize & Fix."
+  elif [ "$debug_attempt_counter" -le "$INSTRUMENTATION_MAX_ATTEMPTS" ]; then
+    echo "Use Instrumentation."
+  else
+    echo "Conclude the task is too complex. You should consider using the 'request_scope_reduction' tool."
   fi
 fi
 
