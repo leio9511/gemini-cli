@@ -1,4 +1,4 @@
-# Plan: SWE Agent Orchestration Integration Test
+# Design: SWE Agent Orchestration Integration Test
 
 
 **Status:** PROPOSED
@@ -56,13 +56,14 @@ This file tracks the live operational state of the workflow.
 
 ```json
 {
-  "status": "INITIALIZING | EXECUTING_TDD | DEBUGGING | NEEDS_ANALYSIS | CODE_REVIEW | AWAITING_FINALIZATION | FINALIZE_COMPLETE",
+  "status": "INITIALIZING | EXECUTING_TDD | DEBUGGING | REPLANNING | CODE_REVIEW | AWAITING_FINALIZATION | FINALIZE_COMPLETE",
   "debug_attempt_counter": "number (optional)",
-  "last_commit_hash": "string (optional)"
+  "last_commit_hash": "string (optional)",
+  "last_error": "string (optional)"
 }
 ```
 
-### Phase 1: Test Infrastructure Setup
+### Requirement 1: Test Infrastructure Setup
 
 The first step is to create the necessary file and a helper function to simulate the agent's environment and actions within a controlled Vitest context.
 
@@ -79,12 +80,41 @@ The first step is to create the necessary file and a helper function to simulate
       - Return an object containing the `finalState` and `output` for assertions.
       - Clean up the temporary directory after the test completes.
 
-### Phase 2: State Transition Test Implementation
+### Requirement 2: State Transition Test Implementation
 
 This phase involves writing a series of tests, each one verifying a specific state transition in the orchestration flow. The tests will follow a "Given-When-Then" structure.
 
-#### 1. Initialization Flow
+#### 1. Initialization and Session Management
 
+-   **Transition:** Stale Session Cleanup
+    -   **Given:** A valid `ACTIVE_PR.json` exists, but all tasks are `DONE`.
+        -   **`ORCHESTRATION_STATE.json`:** Does not exist.
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "tasks": [ { "taskName": "Old task", "status": "DONE" } ]
+            }
+            ```
+    -   **When:** `get_task` is called.
+    -   **Then:** The stale `ACTIVE_PR.json` should be deleted, and the output should be the standard initialization instruction.
+
+-   **Transition:** Interrupted Session Resumption
+    -   **Given:** A session was interrupted mid-task.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "EXECUTING_TDD" }
+            ```
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "tasks": [
+                { "taskName": "First task", "status": "DONE" },
+                { "taskName": "Second task", "description": "Do the second thing", "status": "TODO" }
+              ]
+            }
+            ```
+    -   **When:** `get_task` is called.
+    -   **Then:** The output should be the description of the "Second task".
 
 -   **Transition:** `[NO STATE]` -> `INITIALIZING`
     -   **Given:** No `ACTIVE_PR.json` or `ORCHESTRATION_STATE.json` exists.
@@ -110,7 +140,7 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `submit_work` is called (simulating the agent creating `ACTIVE_PR.json`).
     -   **Then:** The new state in `ORCHESTRATION_STATE.json` should be `EXECUTING_TDD`.
 
-#### 2. TDD Cycle
+#### 2. TDD Cycle & Preflight Checks
 
 
 -   **Transition:** `EXECUTING_TDD` -> Get Next Step
@@ -160,7 +190,7 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `submit_work` is called with a command that exits 0.
     -   **Then:** The corresponding TDD step's status in `ACTIVE_PR.json` should be updated to `DONE`.
 
--   **Transition:** `EXECUTING_TDD` (Red Step) -> `NEEDS_ANALYSIS`
+-   **Transition:** `EXECUTING_TDD` (Red Step) -> Returns `NEEDS_ANALYSIS`
     -   **Given:** State is `EXECUTING_TDD`, expectation is `FAIL`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -175,61 +205,85 @@ This phase involves writing a series of tests, each one verifying a specific sta
             }
             ```
     -   **When:** `submit_work` is called with a command that exits 1.
-    -   **Then:** The output should be `NEEDS_ANALYSIS`, and the state should not change.
+    -   **Then:** The output should contain the string `NEEDS_ANALYSIS`, and the orchestrator state should remain `EXECUTING_TDD`.
 
--   **Transition:** `NEEDS_ANALYSIS` -> `EXECUTING_TDD`
-    -   **Given:** State is `NEEDS_ANALYSIS`.
+-   **Transition:** Awaiting Analysis -> `EXECUTING_TDD`
+    -   **Given:** The tool has returned `NEEDS_ANALYSIS`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
-            { "status": "NEEDS_ANALYSIS" }
+            { "status": "EXECUTING_TDD" }
             ```
         -   **`ACTIVE_PR.json`:** (The `RED` step is still `TODO`)
             ```json
             {
-              "tasks": [
-                { "taskName": "...", "status": "TODO", "tdd_steps": [ { "type": "RED", "status": "TODO" } ] }
-              ]
+              "tasks": [ { "taskName": "...", "status": "TODO", "tdd_steps": [ { "type": "RED", "status": "TODO" } ] } ]
             }
             ```
     -   **When:** `submit_work` is called with `analysis_decision: "SUCCESS"`.
-    -   **Then:** The TDD step's status should be `DONE`, and the state should return to `EXECUTING_TDD`.
+    -   **Then:** The TDD step's status should be `DONE`, and the state should remain `EXECUTING_TDD`.
 
-#### 3. Dual File Update Scenarios
-
--   **Transition:** `CODE_REVIEW` (Feedback) -> `EXECUTING_TDD`
-    -   **Given:** State is `CODE_REVIEW`, and a `FINDINGS.json` file with new findings exists.
-        -   **`ORCHESTRATION_STATE.json`:**
-            ```json
-            { "status": "CODE_REVIEW" }
-            ```
+-   **Transition:** `EXECUTING_TDD` (Green Step) -> `EXECUTING_TDD` (with Safety Checkpoint)
+    -   **Given:** A `GREEN` step has just been completed.
+        -   **`ORCHESTRATION_STATE.json`:** `{ "status": "EXECUTING_TDD" }`
         -   **`ACTIVE_PR.json`:**
             ```json
             {
-              "tasks": [ { "taskName": "Original task", "status": "DONE" } ]
+              "tasks": [ { "tdd_steps": [ { "type": "GREEN", "status": "DONE" } ] } ]
             }
             ```
-        -   **`FINDINGS.json` (Input file):**
+    -   **When:** `get_task` is called.
+    -   **Then:** The output should be the instruction to create a safety checkpoint commit.
+
+-   **Transition:** `EXECUTING_TDD` (Successful `PASS`) -> Preflight Check Triggered
+    -   **Given:** State is `EXECUTING_TDD`, expectation is `PASS`.
+    -   **When:** `submit_work` is called with a command that exits 0.
+    -   **Then:** The `npm run preflight` command should be executed by the tool. (This will be verified by mocking the `npm` command).
+
+-   **Transition:** `EXECUTING_TDD` (Failed `preflight`) -> `DEBUGGING`
+    -   **Given:** State is `EXECUTING_TDD`, expectation is `PASS`, and the main test command succeeds.
+    -   **When:** `submit_work` is called, but the subsequent `preflight` check fails.
+    -   **Then:**
+        -   The new state in `ORCHESTRATION_STATE.json` should be `DEBUGGING`.
+        -   `debug_attempt_counter` should be 1.
+        -   `last_error` should contain the verbatim output from the failed preflight check.
+
+
+
+#### 3. Code Review Cycle
+
+-   **Transition:** `EXECUTING_TDD` (All Tasks Done) -> `CODE_REVIEW` (Review is Invoked)
+    -   **Given:** State is `EXECUTING_TDD`, and all tasks in `ACTIVE_PR.json` are `DONE`.
+    -   **When:** `get_task` is called.
+    -   **Then:** The orchestrator should execute the `request_code_review.sh` script. (This will be verified by mocking `child_process.execSync`). The subsequent state transition depends on the mocked output of this script, as described in the following tests.
+
+-   **Transition:** `CODE_REVIEW` (Review Approved) -> `AWAITING_FINALIZATION`
+    -   **Given:** The orchestrator is in the `CODE_REVIEW` state and the mocked output of `request_code_review.sh` is a JSON object with an empty `findings` array.
+        -   **`ORCHESTRATION_STATE.json`:** `{ "status": "CODE_REVIEW" }`
+    -   **When:** `get_task` is called (triggering the review).
+    -   **Then:** The new state in `ORCHESTRATION_STATE.json` should be `AWAITING_FINALIZATION`.
+
+-   **Transition:** `CODE_REVIEW` (Review Has Findings) -> `EXECUTING_TDD`
+    -   **Given:** The orchestrator is in the `CODE_REVIEW` state and the mocked output of `request_code_review.sh` contains findings.
+        -   **`ORCHESTRATION_STATE.json`:** `{ "status": "CODE_REVIEW" }`
+        -   **Mocked `request_code_review.sh` output:**
             ```json
-            [
-              { "taskName": "Address feedback A", "status": "TODO" },
-              { "taskName": "Address feedback B", "status": "TODO" }
-            ]
+            {
+              "findings": [ { "description": "New task from review" } ]
+            }
             ```
-    -   **When:** `submit_work` is called with the path to `FINDINGS.json`.
+    -   **When:** `get_task` is called (triggering the review).
     -   **Then:**
-        -   `ACTIVE_PR.json` should be updated to include the new tasks from the findings.
-        -   `ORCHESTRATION_STATE.json` status should be updated to `EXECUTING_TDD`.
+        -   The new state in `ORCHESTRATION_STATE.json` should be `EXECUTING_TDD`.
+        -   A new task corresponding to the finding should be added to `ACTIVE_PR.json`.
 
--   **Transition:** `NEEDS_ANALYSIS` -> `EXECUTING_TDD` (Enhanced)
-    -   **Given:** State is `NEEDS_ANALYSIS`.
-        -   **`ORCHESTRATION_STATE.json`:** `{ "status": "NEEDS_ANALYSIS" }`
-        -   **`ACTIVE_PR.json`:** `{ "tasks": [ { "tdd_steps": [ { "status": "TODO" } ] } ] }`
-    -   **When:** `submit_work` is called with `analysis_decision: "SUCCESS"`.
-    -   **Then:**
-        -   The TDD step's status in `ACTIVE_PR.json` should be updated to `DONE`.
-        -   The `status` in `ORCHESTRATION_STATE.json` should be updated to `EXECUTING_TDD`.
+-   **Transition:** `EXECUTING_TDD` (Fix Submitted) -> `CODE_REVIEW` (Re-review)
+    -   **Given:** The agent has just submitted a fix for a code review task.
+        -   **`ORCHESTRATION_STATE.json`:** `{ "status": "EXECUTING_TDD" }`
+    -   **When:** `submit_work` is called for the fix, and it passes the `preflight` check.
+    -   **Then:** The state in `ORCHESTRATION_STATE.json` should transition back to `CODE_REVIEW`.
 
-#### 4. Debugging Cycle
+
+#### 4. Debugging and Recovery Cycle
 
 -   **Transition:** `EXECUTING_TDD` -> `DEBUGGING`
     -   **Given:** State is `EXECUTING_TDD`, expectation is `PASS`.
@@ -246,36 +300,58 @@ This phase involves writing a series of tests, each one verifying a specific sta
             }
             ```
     -   **When:** `submit_work` is called with a command that unexpectedly exits 1.
-    -   **Then:** The new state should be `DEBUGGING`, and `debug_attempt_counter` should be 1. An `error.log` file must be created.
+    -   **Then:**
+        -   The new state in `ORCHESTRATION_STATE.json` should be `DEBUGGING`.
+        -   `debug_attempt_counter` should be 1.
+        -   `last_error` should be populated with the command's output.
 
 -   **Transition:** `DEBUGGING` -> Get Debugging Guidance
     -   **Given:** State is `DEBUGGING` with `debug_attempt_counter: 1`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
-            { "status": "DEBUGGING", "debug_attempt_counter": 1 }
+            { "status": "DEBUGGING", "debug_attempt_counter": 1, "last_error": "Test failed unexpectedly" }
             ```
     -   **When:** `get_task` is called.
     -   **Then:** The output should contain the error log and the "Hypothesize & Fix" guidance.
 
-#### 5. Code Review & Finalization Flow
+-   **Transition:** `DEBUGGING` -> Tool is Locked
+    -   **Given:** State is `DEBUGGING` with `debug_attempt_counter: 1`.
+    -   **When:** `request_scope_reduction` is called.
+    -   **Then:** The tool should exit with an error, indicating it is locked.
 
--   **Transition:** `EXECUTING_TDD` -> `CODE_REVIEW`
-    -   **Given:** State is `EXECUTING_TDD`, and all tasks in `ACTIVE_PR.json` are `DONE`.
+-   **Transition:** `DEBUGGING` -> `REPLANNING` (Scope Reduction)
+    -   **Given:** State is `DEBUGGING` with `debug_attempt_counter` high enough to unlock the tool (e.g., 6).
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
-            { "status": "EXECUTING_TDD" }
+            { "status": "DEBUGGING", "debug_attempt_counter": 6, "last_error": "Final error" }
             ```
-        -   **`ACTIVE_PR.json`:**
+    -   **When:** `request_scope_reduction` is called.
+    -   **Then:**
+        -   The state in `ORCHESTRATION_STATE.json` should be `REPLANNING`.
+        -   The `git reset --hard HEAD` command should be executed (verified via mock).
+
+-   **Transition:** `REPLANNING` -> Get Re-planning Instruction
+    -   **Given:** State is `REPLANNING`.
+        -   **`ORCHESTRATION_STATE.json`:**
             ```json
-            {
-              "tasks": [ { "taskName": "...", "status": "DONE", "tdd_steps": [ { "status": "DONE" } ] } ]
-            }
+            { "status": "REPLANNING", "last_error": "Final error" }
             ```
     -   **When:** `get_task` is called.
-    -   **Then:** The new state should be `CODE_REVIEW`, and the output should be `REQUEST_REVIEW`.
+    -   **Then:** The output should be the re-planning instruction, populated with the original task goal and the `last_error`.
+
+-   **Transition:** `DEBUGGING` -> Escalation
+    -   **Given:** State is `DEBUGGING` with `debug_attempt_counter` high enough to unlock the tool.
+    -   **When:** `escalate_for_external_help` is called with a markdown report.
+    -   **Then:**
+        -   The tool's output should contain the exact markdown report.
+        -   The tool should exit with a specific non-zero code to signal a halt.
+
+
+
+#### 5. Finalization Flow
 
 -   **Transition:** `CODE_REVIEW` (Approved) -> `AWAITING_FINALIZATION`
-    -   **Given:** State is `CODE_REVIEW`, and an empty `FINDINGS.json` file exists.
+    -   **Given:** State is `CODE_REVIEW`, and the code review agent returns no findings.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
             { "status": "CODE_REVIEW" }
@@ -289,8 +365,10 @@ This phase involves writing a series of tests, each one verifying a specific sta
             ```json
             { "status": "AWAITING_FINALIZATION" }
             ```
-    -   **When:** `submit_work` is called with a valid squashed commit hash.
-    -   **Then:** The new state should be `FINALIZE_COMPLETE`, and `last_commit_hash` should be saved.
+    -   **When:** `submit_work` is called after the agent has created the squashed commit.
+    -   **Then:**
+        -   The `submit_work` tool should verify the commit by executing `git rev-list --count main..HEAD` and checking that the result is `1`. (This will be verified via mock).
+        -   The new state should be `FINALIZE_COMPLETE`, and `last_commit_hash` should be saved.
 
 -   **Transition:** `FINALIZE_COMPLETE` -> Get Plan Update Instruction
     -   **Given:** State is `FINALIZE_COMPLETE`.
@@ -305,7 +383,7 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `get_task` is called.
     -   **Then:** The output should be the instruction to update the master plan, dynamically populated with the correct file path.
 
--   **Transition:** `FINALIZE_COMPLETE` -> `INITIALIZING` (Loop)
+-   **Transition:** Plan Updated -> `INITIALIZING` (Loop)
     -   **Given:** State is `FINALIZE_COMPLETE`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -313,26 +391,12 @@ This phase involves writing a series of tests, each one verifying a specific sta
             ```
     -   **When:** `submit_work` is called (simulating plan update).
     -   **Then:** The `ACTIVE_PR.json` file should be deleted, and the state should reset to `INITIALIZING`.
-
-### Phase 3: Bug Fix Implementation
+ 
+### Requirement 3: Bug Fix Implementation
 
 A bug was discovered during the analysis for this plan. The `submit_work.sh` script does not correctly mark successful `GREEN` TDD steps as `DONE`. This will be fixed as part of the implementation.
 
 1.  **Task: Fix Bug in `submit_work` for Green Steps**
     -   **Context:** The current implementation of `submit_work.sh` only contains logic to update a TDD step's status to `DONE` within the `NEEDS_ANALYSIS` flow. It is missing this logic for the standard `PASS` expectation flow.
     -   **Implementation:** Add logic to `submit_work.sh`. After a test with `expectation: "PASS"` succeeds (including the `preflight` check), the script must find the current `TODO` TDD step in `ACTIVE_PR.json` and update its status to `DONE`.
-    -   **Verification:** The existing test case for the `EXECUTING_TDD` (Green Step) transition will now correctly and fully test for this behavior.
-
-
-## Pull Request
-
-This work will be completed in a single pull request.
-
--   **Title:** `test(swe-agent): Replace unit tests with orchestration integration test`
--   **Summary:** This PR removes the brittle shell-based unit tests for the SWE agent and replaces them with a single, robust integration test that validates the agent's core orchestration flow as a state machine. This new approach is more resilient to implementation changes and provides higher confidence in the agent's behavior.
--   **Implementation Tasks:**
-    1.  Remove all `*.test.sh` files from `.agents/swe_agent/tests/`.
-    2.  Create the new test file `.agents/swe_agent/tests/orchestration.integration.test.ts`.
-    3.  Implement the `simulateAgentTurn` test helper function.
-    4.  Implement the bug fix for `submit_work.sh` as described in Phase 3.
-    5.  Implement a distinct, isolated test case for each state transition defined in Phase 2 of this plan.
+    -   **Verification:** The test case for the `EXECUTING_TDD` (Green Step) transition will now correctly and fully test for this behavior.
