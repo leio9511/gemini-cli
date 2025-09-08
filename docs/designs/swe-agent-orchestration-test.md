@@ -222,6 +222,24 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `submit_work` is called with `analysis_decision: "SUCCESS"`.
     -   **Then:** The TDD step's status should be `DONE`, and the state should remain `EXECUTING_TDD`.
 
+-   **Transition:** Awaiting Analysis -> `DEBUGGING` (Analysis Failure)
+    -   **Given:** The tool has returned `NEEDS_ANALYSIS` for a `RED` TDD step.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "EXECUTING_TDD" }
+            ```
+        -   **`ACTIVE_PR.json`:** (The `RED` step is still `TODO`)
+            ```json
+            {
+              "tasks": [ { "taskName": "...", "status": "TODO", "tdd_steps": [ { "type": "RED", "status": "TODO" } ] } ]
+            }
+            ```
+    -   **When:** The agent determines the test failed for an unexpected reason and calls `submit_work` with `analysis_decision: "FAILURE"`.
+    -   **Then:** 
+        - The state should transition to `DEBUGGING`.
+        - `debug_attempt_counter` should be set to 1.
+        - `last_error` should be populated.
+
 -   **Transition:** `EXECUTING_TDD` (Green Step) -> `EXECUTING_TDD` (with Safety Checkpoint)
     -   **Given:** A `GREEN` step has just been completed.
         -   **`ORCHESTRATION_STATE.json`:** `{ "status": "EXECUTING_TDD" }`
@@ -234,13 +252,34 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `get_task` is called.
     -   **Then:** The output should be the instruction to create a safety checkpoint commit.
 
+
 -   **Transition:** `EXECUTING_TDD` (Successful `PASS`) -> Preflight Check Triggered
     -   **Given:** State is `EXECUTING_TDD`, expectation is `PASS`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "EXECUTING_TDD" }
+            ```
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "tasks": [ { "taskName": "...", "status": "TODO", "tdd_steps": [ { "type": "GREEN", "status": "TODO" } ] } ]
+            }
+            ```
     -   **When:** `submit_work` is called with a command that exits 0.
     -   **Then:** The `npm run preflight` command should be executed by the tool. (This will be verified by mocking the `npm` command).
 
 -   **Transition:** `EXECUTING_TDD` (Failed `preflight`) -> `DEBUGGING`
     -   **Given:** State is `EXECUTING_TDD`, expectation is `PASS`, and the main test command succeeds.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "EXECUTING_TDD" }
+            ```
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "tasks": [ { "taskName": "...", "status": "TODO", "tdd_steps": [ { "type": "GREEN", "status": "TODO" } ] } ]
+            }
+            ```
     -   **When:** `submit_work` is called, but the subsequent `preflight` check fails.
     -   **Then:**
         -   The new state in `ORCHESTRATION_STATE.json` should be `DEBUGGING`.
@@ -251,8 +290,20 @@ This phase involves writing a series of tests, each one verifying a specific sta
 
 #### 3. Code Review Cycle
 
+
 -   **Transition:** `EXECUTING_TDD` (All Tasks Done) -> `CODE_REVIEW` (Review is Invoked)
     -   **Given:** State is `EXECUTING_TDD`, and all tasks in `ACTIVE_PR.json` are `DONE`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "EXECUTING_TDD" }
+            ```
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "masterPlanPath": "...",
+              "tasks": [ { "taskName": "Final task", "status": "DONE", "tdd_steps": [ { "status": "DONE" } ] } ]
+            }
+            ```
     -   **When:** `get_task` is called.
     -   **Then:** The orchestrator should execute the `request_code_review.sh` script. (This will be verified by mocking `child_process.execSync`). The subsequent state transition depends on the mocked output of this script, as described in the following tests.
 
@@ -279,6 +330,15 @@ This phase involves writing a series of tests, each one verifying a specific sta
 -   **Transition:** `EXECUTING_TDD` (Fix Submitted) -> `CODE_REVIEW` (Re-review)
     -   **Given:** The agent has just submitted a fix for a code review task.
         -   **`ORCHESTRATION_STATE.json`:** `{ "status": "EXECUTING_TDD" }`
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            {
+              "tasks": [
+                { "taskName": "Original task", "status": "DONE" },
+                { "taskName": "Address code review feedback: ...", "status": "TODO", "tdd_steps": [ { "status": "TODO" } ] }
+              ]
+            }
+            ```
     -   **When:** `submit_work` is called for the fix, and it passes the `preflight` check.
     -   **Then:** The state in `ORCHESTRATION_STATE.json` should transition back to `CODE_REVIEW`.
 
@@ -314,12 +374,49 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `get_task` is called.
     -   **Then:** The output should contain the error log and the "Hypothesize & Fix" guidance.
 
--   **Transition:** `DEBUGGING` -> Tool is Locked
+-   **Transition:** `DEBUGGING` -> `EXECUTING_TDD` (Successful Fix)
+    -   **Given:** State is `DEBUGGING`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "DEBUGGING", "debug_attempt_counter": 2, "last_error": "Some previous error" }
+            ```
+    -   **When:** The agent submits a fix that passes both the original test command and the subsequent `preflight` check.
+    -   **Then:** 
+        - The state should transition from `DEBUGGING` back to `EXECUTING_TDD`.
+        - The `debug_attempt_counter` and `last_error` fields should be cleared.
+
+
+-   **Transition:** `DEBUGGING` -> Tool is Locked (Scope Reduction)
     -   **Given:** State is `DEBUGGING` with `debug_attempt_counter: 1`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "DEBUGGING", "debug_attempt_counter": 1 }
+            ```
     -   **When:** `request_scope_reduction` is called.
     -   **Then:** The tool should exit with an error, indicating it is locked.
 
--   **Transition:** `DEBUGGING` -> `REPLANNING` (Scope Reduction)
+-   **Transition:** `DEBUGGING` -> Tool is Locked (Escalate)
+    -   **Given:** State is `DEBUGGING` with `debug_attempt_counter: 1`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "DEBUGGING", "debug_attempt_counter": 1 }
+            ```
+    -   **When:** `escalate_for_external_help` is called.
+    -   **Then:** The tool should exit with an error, indicating it is locked.
+
+-   **Transition:** `REPLANNING` -> `EXECUTING_TDD`
+    -   **Given:** State is `REPLANNING` and the agent has created a new plan.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "REPLANNING", "last_error": "Final error" }
+            ```
+    -   **When:** The agent submits an updated `ACTIVE_PR.json` with a new, more granular plan.
+    -   **Then:** 
+        - The state should transition from `REPLANNING` back to `EXECUTING_TDD`.
+        - The `last_error` field should be cleared.
+
+
+-   **Transition:** `DEBUGGING` -> `REPLANNING`
     -   **Given:** State is `DEBUGGING` with `debug_attempt_counter` high enough to unlock the tool (e.g., 6).
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -341,6 +438,10 @@ This phase involves writing a series of tests, each one verifying a specific sta
 
 -   **Transition:** `DEBUGGING` -> Escalation
     -   **Given:** State is `DEBUGGING` with `debug_attempt_counter` high enough to unlock the tool.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "DEBUGGING", "debug_attempt_counter": 10, "last_error": "Cannot solve this" }
+            ```
     -   **When:** `escalate_for_external_help` is called with a markdown report.
     -   **Then:**
         -   The tool's output should contain the exact markdown report.
@@ -383,15 +484,29 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `get_task` is called.
     -   **Then:** The output should be the instruction to update the master plan, dynamically populated with the correct file path.
 
--   **Transition:** Plan Updated -> `INITIALIZING` (Loop)
+-   **Transition:** `FINALIZE_COMPLETE` -> `PLAN_UPDATED`
     -   **Given:** State is `FINALIZE_COMPLETE`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
             { "status": "FINALIZE_COMPLETE" }
             ```
     -   **When:** `submit_work` is called (simulating plan update).
-    -   **Then:** The `ACTIVE_PR.json` file should be deleted, and the state should reset to `INITIALIZING`.
+    -   **Then:** The state should transition to `PLAN_UPDATED`.
  
+-   **Transition:** `PLAN_UPDATED` -> `INITIALIZING` (Loop)
+    -   **Given:** State is `PLAN_UPDATED`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "PLAN_UPDATED" }
+            ```
+        -   **`ACTIVE_PR.json`:** (Still exists from the previous run)
+            ```json
+            { "masterPlanPath": "...", "tasks": [ { "status": "DONE" } ] }
+            ```
+    -   **When:** `get_task` is called.
+    -   **Then:** 
+        - The `ACTIVE_PR.json` file should be deleted.
+        - The state should reset to `INITIALIZING`, and the output should be the standard initialization instruction for the next PR.
 ### Requirement 3: Bug Fix Implementation
 
 A bug was discovered during the analysis for this plan. The `submit_work.sh` script does not correctly mark successful `GREEN` TDD steps as `DONE`. This will be fixed as part of the implementation.
