@@ -11,16 +11,38 @@ source "$SCRIPT_DIR/../utils.sh"
 
 
 
+
 MAX_DEBUG_ATTEMPTS=3
 
-INITIALIZATION_INSTRUCTION="Your mission is to create a pull request that implements the plan.
+read -r -d '' INITIALIZATION_INSTRUCTION <<'EOF'
+Your mission is to create a pull request that implements the plan.
 
 First, you must read the plan file and select the next pull request to implement.
 
 Once you have identified the pull request, you must create a new file called \`ACTIVE_PR.json\` that contains the title, summary, and implementation tasks for the pull request.
 
 The \`ACTIVE_PR.json\` file should be in the following format:
-..."
+
+{
+  "masterPlanPath": "string",
+  "prTitle": "string",
+  "summary": "string",
+  "verificationPlan": "string",
+  "tasks": [
+    {
+      "taskName": "string",
+      "status": "TODO | IN_PROGRESS | DONE | ERROR",
+      "tdd_steps": [
+        {
+          "type": "RED | GREEN | REFACTOR",
+          "description": "string",
+          "status": "TODO | DONE",
+        },
+      ],
+    },
+  ],
+}
+EOF
 
 # Check for stale session.
 if [ -f "ACTIVE_PR.json" ]; then
@@ -74,7 +96,7 @@ if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' 
     write_state "status" "AWAITING_FINALIZATION"
     release_lock
     trap - EXIT INT TERM
-    echo "Code review approved. Please squash your commits and submit the final commit hash."
+    echo "All tasks are complete. Squash all commits into a single commit using the PR title from ACTIVE_PR.json as the message."
     exit 0
 fi
 
@@ -84,7 +106,8 @@ if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_h
     write_state "status" "FINALIZE_COMPLETE"
     release_lock
     trap - EXIT INT TERM
-    echo "Please update the master plan."
+    master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
+    echo "Update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash."
     exit 0
 fi
 
@@ -102,9 +125,10 @@ fi
 # Check for the next task to execute.
 has_todo_tasks=$(jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /dev/null && echo "true" || echo "false")
 
+
 case "$has_todo_tasks" in
   "true")
-    task_description=$(jq -r '(.tasks[] | select(.status=="TODO")).description' ACTIVE_PR.json | head -n 1)
+    task_description=$(jq -r '(.tasks[] | select(.status=="TODO") | .tdd_steps[] | select(.status=="TODO")).description' ACTIVE_PR.json | head -n 1)
     echo "Your goal is to complete the next TDD step: ${task_description}"
     exit 0
     ;;

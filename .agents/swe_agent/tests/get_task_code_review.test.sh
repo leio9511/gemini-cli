@@ -6,15 +6,12 @@ test_stale_session_reset() {
   # Arrange
   TEST_DIR=$(mktemp -d)
   cd "$TEST_DIR"
-  # Make a dummy master plan file that the script can find
-  mkdir -p docs/plans
-  touch docs/plans/fix-swe-agent-discrepancies.plan.md
 
   echo '{"tasks": [{"status": "DONE"}, {"status": "DONE"}]}' > ACTIVE_PR.json
-  echo '{"status": "EXECUTING_TDD"}' > ORCHESTRATION_STATE.json
+  echo '{"status": "CODE_REVIEW"}' > ORCHESTRATION_STATE.json
 
   # Act
-  output=$(bash /usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/get_task.sh)
+  output=$(bash /usr/local/google/home/lychen/Projects/gemini-cli/.agents/swe_agent/tools/get_task.sh "$TEST_DIR")
 
   # Assert
   if [ -f "ACTIVE_PR.json" ]; then
