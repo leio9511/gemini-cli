@@ -6,7 +6,8 @@
   },
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    ".agents/swe_agent"
   ],
   "private": "true",
   "repository": {

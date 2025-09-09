@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
@@ -7,7 +6,7 @@ if [ -n "$1" ]; then
   cd "$1"
 fi
 
-source "$SCRIPT_DIR/../utils.sh"
+source "$(dirname "$0")/../utils.sh"
 
 
 
@@ -15,7 +14,7 @@ source "$SCRIPT_DIR/../utils.sh"
 MAX_DEBUG_ATTEMPTS=3
 
 read -r -d '' INITIALIZATION_INSTRUCTION <<'EOF'
-Your mission is to create a pull request that implements the plan.
+Please read the plan file and select the next pull request to implement.
 
 First, you must read the plan file and select the next pull request to implement.
 
@@ -54,23 +53,18 @@ if [ -f "ACTIVE_PR.json" ]; then
   fi
 fi
 
+
+
+
 # If no active PR file exists, the first step is to create one.
 if [ ! -f "ACTIVE_PR.json" ]; then
+  echo "{}" | jq '.status = "INITIALIZING"' > ORCHESTRATION_STATE.json
   echo "$INITIALIZATION_INSTRUCTION"
   exit 0
 fi
 
-# Ensure the state file is initialized if it doesn't exist.
-acquire_lock
-trap 'release_lock' EXIT INT TERM
-if [ ! -f "ORCHESTRATION_STATE.json" ]; then
-    write_state "status" "INITIALIZING"
-fi
-release_lock
-trap - EXIT INT TERM
-
 # If in a debugging state, provide the error log and strategic guidance.
-status=$(read_state "status")
+status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
 if [ "$status" == "DEBUGGING" ]; then
   debug_attempt_counter=$(read_state "debug_attempt_counter")
   error_log=$(cat error.log)

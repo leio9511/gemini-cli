@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 LOCK_DIR="ORCHESTRATION_STATE.lock"
 

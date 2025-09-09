@@ -17,7 +17,9 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 source "$SCRIPT_DIR/../utils.sh"
 
 handle_initializing_state() {
-  write_state "status" "EXECUTING_TDD"
+  branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
+  write_state "status" "CREATING_BRANCH"
+  echo "Please create a new branch named feature/$branch_name"
 }
 
 handle_code_review_state() {

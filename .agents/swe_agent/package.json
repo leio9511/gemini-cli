@@ -1,0 +1,11 @@
+{
+  "name": "@google/gemini-cli-swe-agent-tests",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
