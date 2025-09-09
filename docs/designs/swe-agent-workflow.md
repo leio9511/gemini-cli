@@ -80,7 +80,7 @@ This table details every state, the event that triggers a change, the conditions
 | `INITIALIZING` | `submit_work` | Agent has created `ACTIVE_PR.json`. | Transitions state. | **`CREATING_BRANCH`** |
 | **`CREATING_BRANCH`** | `get_task` | State is `CREATING_BRANCH`. | 1. Creates a branch name from `prTitle`.<br>2. Runs `git checkout main && git pull`.<br>3. Runs `git checkout -b [new_branch]`.<br>4. Saves branch name to state. | `EXECUTING_TDD` |
 | **`EXECUTING_TDD`** | `get_task` | TDD steps are `TODO`. | Returns the description of the next TDD step. | `EXECUTING_TDD` |
-| `EXECUTING_TDD` | `get_task` | All TDD steps in `ACTIVE_PR.json` are `DONE`. | Invokes the Code Review Agent on the current diff. | `CODE_REVIEW` |
+| `EXECUTING_TDD` | `get_task` | All TDD steps in `ACTIVE_PR.json` are `DONE`. | Invokes the Code Review Agent by executing the `.agents/swe_agent/tools/request_code_review.sh` script. | `CODE_REVIEW` |
 | `EXECUTING_TDD` | `submit_work` | Test passes (`PASS` expectation) AND `preflight` check passes. | Marks the current TDD step as `DONE`. | `EXECUTING_TDD` |
 | `EXECUTING_TDD` | `submit_work` | Test fails unexpectedly OR `preflight` check fails. | 1. Saves error output to `last_error`.<br>2. Increments `debug_attempt_counter`. | `DEBUGGING` |
 | **`DEBUGGING`** | `get_task` | State is `DEBUGGING`. | Returns `last_error` and provides debugging guidance. | `DEBUGGING` |
@@ -218,7 +218,7 @@ If the agent fails even on re-planned, smaller tasks, it signals a fundamental k
 This phase ensures that all code changes meet quality standards through a rigorous, multi-stage verification loop.
 
 1.  **Trigger:** After the agent successfully submits the final TDD step and it passes the orchestrator's `preflight` check, the orchestrator's state machine triggers the code review process.
-2.  **Internal Review:** The orchestration logic invokes a separate Code Review Agent on the current state of the code. The review agent is responsible for all quality checks, including enforcing a "no temporary logs" policy.
+2.  **Internal Review:** The orchestration logic invokes a separate Code Review Agent on the current state of the code by executing the `.agents/swe_agent/tools/request_code_review.sh` script. This script is responsible for packaging the necessary context (such as the current git diff and PR description) and calling the Code Review Agent. The review agent is responsible for all quality checks, including enforcing a "no temporary logs" policy.
 3.  **Feedback & Cleanup Loop:**
     - **If the review is approved (no findings):** The workflow proceeds to Phase 5: Finalization.
     - **If the review has findings:** The orchestrator adds a new task to `ACTIVE_PR.json` (e.g., "Address code review feedback: [details]"). The SWE Agent receives this new task.
