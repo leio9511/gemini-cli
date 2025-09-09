@@ -19,9 +19,10 @@ This cycle ensures that by the end of the process, we have a reliable test suite
 
 ---
 
+
 ## Phase 1: Test Infrastructure and Foundational Tests
 
-### Pull Request #1: feat(swe-agent): Set up orchestration integration test infrastructure
+### Pull Request #1: feat(swe-agent): Set up orchestration integration test infrastructure [DONE] fff9df349492d23c69bca20340eeb0733f281171
 
 -   **PR Title:** `feat(swe-agent): Set up orchestration integration test infrastructure`
 -   **Summary:** This PR establishes the foundational infrastructure for the new integration test suite. It creates the test file, a simulation helper for running agent tools in a controlled environment, and implements two basic "happy path" tests to prove the infrastructure works. This PR does not aim to fix any bugs but builds the scaffolding for all subsequent testing.
