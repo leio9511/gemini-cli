@@ -54,11 +54,13 @@ This file represents the agent's current engineering task.
 
 This file tracks the live operational state of the workflow.
 
+
 ```json
 {
-  "status": "INITIALIZING | EXECUTING_TDD | DEBUGGING | REPLANNING | CODE_REVIEW | AWAITING_FINALIZATION | FINALIZE_COMPLETE",
+  "status": "INITIALIZING | CREATING_BRANCH | EXECUTING_TDD | DEBUGGING | REPLANNING | CODE_REVIEW | AWAITING_FINALIZATION | FINALIZE_COMPLETE | PLAN_UPDATED | MERGING_BRANCH | HALTED",
   "debug_attempt_counter": "number (optional)",
   "last_commit_hash": "string (optional)",
+  "current_pr_branch": "string (optional)",
   "last_error": "string (optional)"
 }
 ```
@@ -80,9 +82,10 @@ The first step is to create the necessary file and a helper function to simulate
       - Return an object containing the `finalState` and `output` for assertions.
       - Clean up the temporary directory after the test completes.
 
+
 ### Requirement 2: State Transition Test Implementation
 
-This phase involves writing a series of tests, each one verifying a specific state transition in the orchestration flow. The tests will follow a "Given-When-Then" structure.
+This phase involves writing a series of tests, each verifying a specific state transition in the orchestration flow. The tests will follow a "Given-When-Then" structure.
 
 #### 1. Initialization and Session Management
 
@@ -123,7 +126,7 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `get_task` is called.
     -   **Then:** The output should be the detailed initialization instruction, including the full JSON schema.
 
--   **Transition:** `INITIALIZING` -> `EXECUTING_TDD`
+-   **Transition:** `INITIALIZING` -> `CREATING_BRANCH`
     -   **Given:** The agent has just created the `ACTIVE_PR.json` file.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -138,8 +141,24 @@ This phase involves writing a series of tests, each one verifying a specific sta
             }
             ```
     -   **When:** `submit_work` is called (simulating the agent creating `ACTIVE_PR.json`).
-    -   **Then:** The new state in `ORCHESTRATION_STATE.json` should be `EXECUTING_TDD`.
+-   **Then:** The new state in `ORCHESTRATION_STATE.json` should be `CREATING_BRANCH`.
 
+-   **Transition:** `CREATING_BRANCH` -> `EXECUTING_TDD`
+    -   **Given:** The orchestrator is ready to create the feature branch.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "CREATING_BRANCH" }
+            ```
+        -   **`ACTIVE_PR.json`:**
+            ```json
+            { "prTitle": "feat: Implement New Feature" }
+            ```
+    -   **When:** `get_task` is called.
+    -   **Then:**
+        -   The orchestrator should execute `git checkout main`, `git pull`, and `git checkout -b feat/implement-new-feature`. (This will be verified via mock).
+        -   The new state in `ORCHESTRATION_STATE.json` should be `EXECUTING_TDD`.
+        -   The `current_pr_branch` field in `ORCHESTRATION_STATE.json` should be set to `feat/implement-new-feature`.
+ 
 #### 2. TDD Cycle & Preflight Checks
 
 
@@ -449,7 +468,10 @@ This phase involves writing a series of tests, each one verifying a specific sta
 
 
 
-#### 5. Finalization Flow
+
+
+
+#### 5. Finalization and Automated Git Workflow
 
 -   **Transition:** `CODE_REVIEW` (Approved) -> `AWAITING_FINALIZATION`
     -   **Given:** State is `CODE_REVIEW`, and the code review agent returns no findings.
@@ -471,7 +493,7 @@ This phase involves writing a series of tests, each one verifying a specific sta
         -   The `submit_work` tool should verify the commit by executing `git rev-list --count main..HEAD` and checking that the result is `1`. (This will be verified via mock).
         -   The new state should be `FINALIZE_COMPLETE`, and `last_commit_hash` should be saved.
 
--   **Transition:** `FINALIZE_COMPLETE` -> Get Plan Update Instruction
+-   **Transition:** `FINALIZE_COMPLETE` -> Get "Update Plan" Instruction
     -   **Given:** State is `FINALIZE_COMPLETE`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -493,20 +515,40 @@ This phase involves writing a series of tests, each one verifying a specific sta
     -   **When:** `submit_work` is called (simulating plan update).
     -   **Then:** The state should transition to `PLAN_UPDATED`.
  
--   **Transition:** `PLAN_UPDATED` -> `INITIALIZING` (Loop)
+-   **Transition:** `PLAN_UPDATED` -> `MERGING_BRANCH`
     -   **Given:** State is `PLAN_UPDATED`.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
             { "status": "PLAN_UPDATED" }
             ```
-        -   **`ACTIVE_PR.json`:** (Still exists from the previous run)
+    -   **When:** `get_task` is called.
+    -   **Then:** The state should transition to `MERGING_BRANCH`.
+
+-   **Transition:** `MERGING_BRANCH` -> `INITIALIZING` (Successful Merge)
+    -   **Given:** State is `MERGING_BRANCH` and the feature branch can be merged cleanly.
+        -   **`ORCHESTRATION_STATE.json`:**
             ```json
-            { "masterPlanPath": "...", "tasks": [ { "status": "DONE" } ] }
+            { "status": "MERGING_BRANCH", "current_pr_branch": "feat/my-feature" }
             ```
     -   **When:** `get_task` is called.
-    -   **Then:** 
-        - The `ACTIVE_PR.json` file should be deleted.
-        - The state should reset to `INITIALIZING`, and the output should be the standard initialization instruction for the next PR.
+    -   **Then:**
+        -   The orchestrator should execute `git checkout main`, `git pull`, `git merge --no-ff feat/my-feature`, and `git branch -d feat/my-feature`. (Verified via mock).
+        -   The `ACTIVE_PR.json` file should be deleted.
+        -   The state should reset to `INITIALIZING`.
+        -   The `current_pr_branch` field should be cleared.
+
+-   **Transition:** `MERGING_BRANCH` -> `HALTED` (Merge Conflict)
+    -   **Given:** State is `MERGING_BRANCH` and the feature branch has a merge conflict.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "MERGING_BRANCH", "current_pr_branch": "feat/conflicting-feature" }
+            ```
+    -   **When:** `get_task` is called, and the mocked `git merge` command fails.
+    -   **Then:**
+        -   The state should transition to `HALTED`.
+        -   The output should be a clear error message instructing the user to resolve the conflict manually.
+        -   The tool should exit with a non-zero code to stop execution.
+
 ### Requirement 3: Bug Fix Implementation
 
 A bug was discovered during the analysis for this plan. The `submit_work.sh` script does not correctly mark successful `GREEN` TDD steps as `DONE`. This will be fixed as part of the implementation.

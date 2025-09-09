@@ -28,7 +28,17 @@ The system consists of three primary components, with a clear separation of resp
 3.  **The State Files (The "External Memory"):**
     - **`ACTIVE_PR.json`**: Contains the engineering plan (the list of TDD tasks). This is the source of truth for the work to be done.
     - **`ORCHESTRATION_STATE.json`**: Tracks the live operational state of the workflow (e.g., `EXECUTING_TDD`, `DEBUGGING`, `debug_attempt_counter`).
-
+    ```jsonc
+    // Sample ORCHESTRATION_STATE.json schema
+    {
+      "status": "INITIALIZING | CREATING_BRANCH | EXECUTING_TDD | DEBUGGING | REPLANNING | CODE_REVIEW | AWAITING_FINALIZATION | FINALIZE_COMPLETE | PLAN_UPDATED | MERGING_BRANCH | HALTED",
+      "debug_attempt_counter": "number (optional)",
+      "last_commit_hash": "string (optional)",
+      "current_pr_branch": "string (optional)",
+      "last_error": "string (optional)"
+    }
+    ```
+    
 The use of structured `.json` files for state management is a deliberate design choice. It allows the deterministic, stateless **Orchestration Logic** embedded in the tools to reliably parse and update the workflow's state. This cleanly separates responsibilities: the **SWE Agent** handles the complex, one-time task of converting the unstructured markdown plan into a structured JSON object, and the orchestration tools manage it from there. This avoids the risks of having logic parse natural language for state.
 
 ## 3. The Core Tools and Interaction Loop
@@ -57,7 +67,37 @@ This tool is the single, exclusive gateway for all code verification. The agent 
 
 ## 4. The Workflow Phases (Lifecycle of a PR)
 
+
 The orchestration logic guides the agent through the following phases for each Pull Request defined in a master plan document (e.g., `docs/Plan_Doc/Active_Plan.md`).
+
+### 4.1 State Transition Table
+
+This table details every state, the event that triggers a change, the conditions for that change, the actions the orchestrator performs, and the resulting state.
+
+| Current State | Triggering Event | Condition(s) | Action(s) Performed by Orchestrator | Next State |
+| :--- | :--- | :--- | :--- | :--- |
+| **`INITIALIZING`** | `get_task` | `ACTIVE_PR.json` does not exist. | Instructs agent to create `ACTIVE_PR.json` from the master plan. | `INITIALIZING` |
+| `INITIALIZING` | `submit_work` | Agent has created `ACTIVE_PR.json`. | Transitions state. | **`CREATING_BRANCH`** |
+| **`CREATING_BRANCH`** | `get_task` | State is `CREATING_BRANCH`. | 1. Creates a branch name from `prTitle`.<br>2. Runs `git checkout main && git pull`.<br>3. Runs `git checkout -b [new_branch]`.<br>4. Saves branch name to state. | `EXECUTING_TDD` |
+| **`EXECUTING_TDD`** | `get_task` | TDD steps are `TODO`. | Returns the description of the next TDD step. | `EXECUTING_TDD` |
+| `EXECUTING_TDD` | `get_task` | All TDD steps in `ACTIVE_PR.json` are `DONE`. | Invokes the Code Review Agent on the current diff. | `CODE_REVIEW` |
+| `EXECUTING_TDD` | `submit_work` | Test passes (`PASS` expectation) AND `preflight` check passes. | Marks the current TDD step as `DONE`. | `EXECUTING_TDD` |
+| `EXECUTING_TDD` | `submit_work` | Test fails unexpectedly OR `preflight` check fails. | 1. Saves error output to `last_error`.<br>2. Increments `debug_attempt_counter`. | `DEBUGGING` |
+| **`DEBUGGING`** | `get_task` | State is `DEBUGGING`. | Returns `last_error` and provides debugging guidance. | `DEBUGGING` |
+| `DEBUGGING` | `submit_work` | Agent's fix passes all checks. | 1. Clears `last_error`.<br>2. Clears `debug_attempt_counter`. | `EXECUTING_TDD` |
+| `DEBUGGING` | `request_scope_reduction` | `debug_attempt_counter` threshold is met. | 1. Runs `git reset --hard HEAD`.<br>2. Saves error context for re-planning. | `REPLANNING` |
+| **`REPLANNING`** | `get_task` | State is `REPLANNING`. | Instructs agent to create a new, more granular plan using the saved context. | `REPLANNING` |
+| `REPLANNING` | `submit_work` | Agent submits an updated `ACTIVE_PR.json`. | Clears `last_error`. | `EXECUTING_TDD` |
+| **`CODE_REVIEW`** | `get_task` | Review is approved (no findings). | Transitions state. | `AWAITING_FINALIZATION` |
+| `CODE_REVIEW` | `get_task` | Review has findings. | Adds new tasks to `ACTIVE_PR.json` based on the review findings. | `EXECUTING_TDD` |
+| **`AWAITING_FINALIZATION`** | `get_task` | State is `AWAITING_FINALIZATION`. | Instructs agent to squash all commits into a single commit. | `AWAITING_FINALIZATION` |
+| `AWAITING_FINALIZATION` | `submit_work` | Agent submits the squashed commit hash. | 1. Verifies there is only one commit.<br>2. Saves the commit hash to state. | `FINALIZE_COMPLETE` |
+| **`FINALIZE_COMPLETE`** | `get_task` | State is `FINALIZE_COMPLETE`. | Instructs agent to update the master plan file to mark the PR as `[DONE]`. | `FINALIZE_COMPLETE` |
+| `FINALIZE_COMPLETE` | `submit_work` | Agent confirms the master plan is updated. | Transitions state. | **`PLAN_UPDATED`** |
+| **`PLAN_UPDATED`** | `get_task` | State is `PLAN_UPDATED`. | Transitions state to prepare for the merge. | **`MERGING_BRANCH`** |
+| **`MERGING_BRANCH`** | `get_task` | Merge to `main` is successful. | 1. `git checkout main && git pull`.<br>2. `git merge --no-ff [branch]`.<br>3. `git branch -d [branch]`.<br>4. Deletes `ACTIVE_PR.json`. | **`INITIALIZING`** |
+| `MERGING_BRANCH` | `get_task` | Merge to `main` fails (conflict). | 1. Prints a clear error message to the user.<br>2. Halts all further execution. | **`HALTED` (Terminal)** |
+| **`HALTED` (Terminal)** | Any | N/A | No actions. Requires human intervention to resolve the repository state. | `HALTED` |
 
 ### Phase 1: Initialization
 
@@ -92,6 +132,13 @@ The logic for the first `get_task` call is as follows:
     ```
 3.  **Agent Executes:** The agent performs the reasoning-heavy task of parsing the markdown, finding the correct PR, extracting its details, and creating the `ACTIVE_PR.json` file according to the provided schema.
 4.  **Agent Submits:** The agent calls `submit_work` to report that the initialization is complete. The TDD loop can now begin.
+5.  **Orchestrator Creates Branch:** When `get_task` is called next, the orchestration logic sees the `INITIALIZING` state is complete. It transitions to a `CREATING_BRANCH` state, where it:
+    a.  Reads the `prTitle` from `ACTIVE_PR.json`.
+    b.  Sanitizes the title into a git-friendly branch name (e.g., "feat: Implement New Feature" -> `feat/implement-new-feature`).
+    c.  **Crucially, runs `git checkout main` and `git pull` to ensure it's starting from the latest code.**
+    d.  Executes `git checkout -b [new-branch-name]`.
+    e.  Saves the new branch name to `ORCHESTRATION_STATE.json` in the `current_pr_branch` field.
+    f.  Transitions the state to `EXECUTING_TDD` and returns the first TDD step to the agent.
 
 ### Phase 2: TDD Execution
 
@@ -188,12 +235,20 @@ This phase is a series of micro-tasks, guided by the orchestrator and executed b
 3.  **Verification:** The `submit_work` tool deterministically verifies the branch state (e.g., by checking that `git rev-list --count main..HEAD` is `1`).
 4.  **Instruction:** `get_task` instructs the agent: "Update the master plan at `docs/Plan_Doc/Active_Plan.md` to mark this PR as `[DONE]` and append the final commit hash."
 5.  **Agent Updates Plan:** The agent, handling the unstructured markdown, updates the plan file and calls `submit_work`.
-6.  **Loop Initiation:** The response to the final submission is the same instruction from Phase 1: "Initialize the next PR from the plan." This seamlessly transitions the agent to the next cycle.
-7.  **Cleanup:** After successfully instructing the agent to start the next loop, the tool logic deterministically deletes the now-obsolete `ACTIVE_PR.json` file from the completed PR.
+6.  **Transition to Merge:** When `submit_work` sees a submission confirming the plan update, it transitions the state to `MERGING_BRANCH`, handing off control to the final automated Git workflow phase.
 
-### Phase 6: Handoff for Human Review
+### Phase 6: Automated Branch Merging and Workflow Continuation
 
-While this workflow automates the development and review cycles for each feature branch, it adheres to the principle that the final merge to `main` is a protected action requiring human oversight. After the final PR in the master plan is completed and finalized on its branch, the agent's work is considered done. The responsibility for pushing the feature branches, opening the formal Pull Requests in the Git hosting platform, and merging them into `main` is deliberately left to a human developer. This ensures that the project's CI/CD pipeline acts as the ultimate quality gate and provides a crucial final sanity check before modifying the source of truth.
+This final phase replaces the manual handoff with a reliable, tool-driven process to merge the completed work and start the next cycle.
+
+1.  **Orchestrator Merges and Cleans Up:** When `get_task` is called in the `MERGING_BRANCH` state, the orchestration logic performs the final Git operations:
+    a.  Reads the `current_pr_branch` from the state file.
+    b.  Executes `git checkout main`.
+    c.  Executes `git pull` to ensure the main branch is up-to-date.
+    d.  Executes `git merge --no-ff [current_pr_branch]`.
+2.  **Safety Check and Loop:** The orchestrator checks the exit code of the merge command.
+    - **If successful:** It proceeds to run `git branch -d [current_pr_branch]`, deletes the completed `ACTIVE_PR.json`, clears the `current_pr_branch` from the state file, and transitions the state back to `INITIALIZING`. The next call to `get_task` will start the entire workflow over for the next PR in the plan.
+    - **If it fails (merge conflict):** This is the critical safety gate. The tool will **HALT** the entire operation, transitioning to a terminal `HALTED` state. It will print a clear error message to the user: `ERROR: Automated merge failed due to a conflict. Please resolve the conflict in branch '[current_pr_branch]' and merge it to main manually. Then, delete the branch and the 'ACTIVE_PR.json' file before restarting the agent to continue with the next PR.` This requires human intervention to fix the repository before the agent can continue, preventing the agent from corrupting the repository state.
 
 ## 5. Tool Schemas
 

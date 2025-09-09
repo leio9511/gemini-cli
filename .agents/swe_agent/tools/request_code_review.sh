@@ -21,7 +21,7 @@ fi
 # 3. Define the prompt for the Code Review Agent.
 #    The agent's persona and main instructions are loaded from the settings file.
 #    This prompt invokes the agent's `perform_code_review` capability.
-PROMPT="perform_code_review"
+PROMPT="perform_code_review(spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
 
 
 
