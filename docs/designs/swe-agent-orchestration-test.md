@@ -6,6 +6,7 @@
 ## References
 
 -   **Design Doc:** @docs/designs/swe-agent-workflow.md
+-   **Strategy Doc:** @docs/designs/swe-agent-testing-strategy.md
 
 ## Context
 
@@ -14,9 +15,21 @@ The current test suite for the SWE Agent consists of a series of shell scripts (
 - They are sensitive to the shell execution context, leading to flaky failures related to the current working directory.
 - They do not provide a clear, high-level view of the agent's primary function: orchestrating a complex, stateful workflow.
 
+
 The core design of the SWE Agent is a state machine. The "state" is the combination of `ACTIVE_PR.json` and `ORCHESTRATION_STATE.json`. The tools (`get_task` and `submit_work`) are the deterministic transition functions.
 
-This plan proposes replacing the existing unit tests with a single, comprehensive integration test that validates the integrity of this state machine.
+This plan proposes replacing the existing brittle shell-script-based tests with a single, comprehensive integration test. As outlined in the SWE Agent Testing Strategy, this test serves as the critical middle tier of the testing pyramid. Its primary goal is to validate the integrity of the orchestration state machine and the contracts between the tools, not to test the implementation details of individual scripts.
+
+## Scope and Boundaries (Non-Goals)
+
+This integration test is designed to be the core of our automated testing, but it is not intended to cover all testing needs.
+
+-   **Unit Testing:** This test suite will not validate the internal logic of every helper function. Pure, deterministic helper functions should be tested with their own dedicated, fast-running unit tests as per Tier 1 of the testing strategy.
+
+-   **End-to-End (E2E) Validation:** This test suite validates the *mechanism* of the orchestrator, not the *quality* of the agent's output. It will mock external processes like `git` and `npm` commands and will not actually run the agent's generated code. Verifying that the agent can successfully complete a real-world task from start to finish is the responsibility of Tier 3, Manual/E2E testing.
+
+
+
 
 ## Plan
 
@@ -65,7 +78,16 @@ This file tracks the live operational state of the workflow.
 }
 ```
 
-### Requirement 1: Test Infrastructure Setup
+### Requirement 1: Bug Fix Implementation
+
+A bug was discovered during the analysis for this plan. The `submit_work.sh` script does not correctly mark successful `GREEN` TDD steps as `DONE`. This will be fixed as part of the implementation.
+
+1.  **Task: Fix Bug in `submit_work` for Green Steps**
+    -   **Context:** The current implementation of `submit_work.sh` only contains logic to update a TDD step's status to `DONE` within the `NEEDS_ANALYSIS` flow. It is missing this logic for the standard `PASS` expectation flow.
+    -   **Implementation:** Add logic to `submit_work.sh`. After a test with `expectation: "PASS"` succeeds (including the `preflight` check), the script must find the current `TODO` TDD step in `ACTIVE_PR.json` and update its status to `DONE`.
+    -   **Verification:** The test case for the `EXECUTING_TDD` (Green Step) transition will now correctly and fully test for this behavior.
+
+### Requirement 2: Test Infrastructure Setup
 
 The first step is to create the necessary file and a helper function to simulate the agent's environment and actions within a controlled Vitest context.
 
@@ -83,7 +105,7 @@ The first step is to create the necessary file and a helper function to simulate
       - Clean up the temporary directory after the test completes.
 
 
-### Requirement 2: State Transition Test Implementation
+### Requirement 3: State Transition Test Implementation
 
 This phase involves writing a series of tests, each verifying a specific state transition in the orchestration flow. The tests will follow a "Given-When-Then" structure.
 
@@ -135,13 +157,28 @@ This phase involves writing a series of tests, each verifying a specific state t
         -   **`ACTIVE_PR.json`:**
             ```json
             {
-              "masterPlanPath": "docs/plans/some-plan.md",
+              "masterPlanPath": "docs/designs/swe-agent-workflow.md",
               "prTitle": "feat: Implement New Feature",
+              "summary": "This PR implements a new feature based on the plan.",
+              "verificationPlan": "All new logic is covered by tests.",
               "tasks": [ { "taskName": "First task", "status": "TODO", "tdd_steps": [] } ]
             }
             ```
     -   **When:** `submit_work` is called (simulating the agent creating `ACTIVE_PR.json`).
 -   **Then:** The new state in `ORCHESTRATION_STATE.json` should be `CREATING_BRANCH`.
+
+-   **Transition:** `INITIALIZING` -> `HALTED` (Malformed JSON)
+    -   **Given:** The agent has created a malformed `ACTIVE_PR.json` file.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "INITIALIZING" }
+            ```
+        -   **`ACTIVE_PR.json`:** `{"tasks": "this is not an array"}` (Invalid schema)
+    -   **When:** `submit_work` is called.
+    -   **Then:**
+        -   The state should transition to `HALTED`.
+        -   `last_error` should contain a message about the schema validation failure.
+        -   The tool should exit with a non-zero code.
 
 -   **Transition:** `CREATING_BRANCH` -> `EXECUTING_TDD`
     -   **Given:** The orchestrator is ready to create the feature branch.
@@ -524,7 +561,7 @@ This phase involves writing a series of tests, each verifying a specific state t
     -   **When:** `get_task` is called.
     -   **Then:** The state should transition to `MERGING_BRANCH`.
 
--   **Transition:** `MERGING_BRANCH` -> `INITIALIZING` (Successful Merge)
+-   **Transition:** `MERGING_BRANCH` (Ready to Merge) -> `INITIALIZING` (Successful Merge)
     -   **Given:** State is `MERGING_BRANCH` and the feature branch can be merged cleanly.
         -   **`ORCHESTRATION_STATE.json`:**
             ```json
@@ -549,11 +586,13 @@ This phase involves writing a series of tests, each verifying a specific state t
         -   The output should be a clear error message instructing the user to resolve the conflict manually.
         -   The tool should exit with a non-zero code to stop execution.
 
-### Requirement 3: Bug Fix Implementation
-
-A bug was discovered during the analysis for this plan. The `submit_work.sh` script does not correctly mark successful `GREEN` TDD steps as `DONE`. This will be fixed as part of the implementation.
-
-1.  **Task: Fix Bug in `submit_work` for Green Steps**
-    -   **Context:** The current implementation of `submit_work.sh` only contains logic to update a TDD step's status to `DONE` within the `NEEDS_ANALYSIS` flow. It is missing this logic for the standard `PASS` expectation flow.
-    -   **Implementation:** Add logic to `submit_work.sh`. After a test with `expectation: "PASS"` succeeds (including the `preflight` check), the script must find the current `TODO` TDD step in `ACTIVE_PR.json` and update its status to `DONE`.
-    -   **Verification:** The test case for the `EXECUTING_TDD` (Green Step) transition will now correctly and fully test for this behavior.
+-   **Transition:** `HALTED` -> `HALTED` (Terminal State)
+    -   **Given:** State is `HALTED`.
+        -   **`ORCHESTRATION_STATE.json`:**
+            ```json
+            { "status": "HALTED", "last_error": "Some critical failure" }
+            ```
+    -   **When:** `get_task` is called.
+    -   **Then:**
+        -   The state should remain `HALTED`.
+        -   The tool should exit with a non-zero code to prevent further autonomous action.

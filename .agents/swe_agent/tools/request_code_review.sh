@@ -18,11 +18,17 @@ fi
 
 
 
-# 3. Define the prompt for the Code Review Agent.
-#    The agent's persona and main instructions are loaded from the settings file.
-#    This prompt invokes the agent's `perform_code_review` capability.
-PROMPT="perform_code_review(spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
 
+
+
+# 3. Read the master plan path from the ACTIVE_PR.json
+MASTER_PLAN_PATH=$(jq -r '.masterPlanPath' "$SPEC_FILE")
+
+# 4. Define the prompt for the Code Review Agent.
+#    The agent's persona and main instructions are loaded from the settings file.
+#    This prompt invokes the agent's `perform_code_review` capability,
+#    providing the master plan, the active PR spec, and the diff.
+PROMPT="perform_code_review(master_plan=@$MASTER_PLAN_PATH, spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
 
 
 # 4. Run the Code Review Agent and capture its JSON output.

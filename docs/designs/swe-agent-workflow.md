@@ -112,6 +112,7 @@ The logic for the first `get_task` call is as follows:
     ```jsonc
     // Sample ACTIVE_PR.json schema provided by the Orchestrator
     {
+      "masterPlanPath": "string",
       "prTitle": "string",
       "summary": "string",
       "verificationPlan": "string",

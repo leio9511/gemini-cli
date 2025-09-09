@@ -18,15 +18,19 @@ fi
 
 
 
+
+
+
+
+
+
 # 3. Define the prompt for the Code Review Agent.
 #    The agent's persona and main instructions are loaded from the settings file.
-#    This prompt invokes the agent's `perform_code_review` capability.
-PROMPT="perform_code_review"
+#    This prompt invokes the agent's `perform_code_review` capability,
+#    providing the active PR spec (which contains the @-reference to the master plan) and the diff.
+PROMPT="perform_code_review(spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
 
 # 4. Run the Code Review Agent and capture its JSON output.
-#    Temporarily set the default settings to the review agent's settings.
-#    ln -sf "../$REVIEW_SETTINGS_FILE" "$DEFAULT_SETTINGS_FILE"
-#    REVIEW_RESULT=$($GEMINI_CLI -p "$PROMPT")
 REVIEW_RESULT=$($GEMINI_CLI --cf "$REVIEW_SETTINGS_FILE" -p "$PROMPT")
 
 # 5. Clean up the temporary diff file
