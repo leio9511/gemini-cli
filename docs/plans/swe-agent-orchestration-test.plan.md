@@ -42,11 +42,12 @@ This cycle ensures that by the end of the process, we have a reliable test suite
     -   [ ] Task: Modify `submit_work.sh` to transition the state to `CREATING_BRANCH` when called in the `INITIALIZING` state.
     -   [ ] Task: Run the test again to confirm it passes.
 
+
 ---
 
 ## Phase 2: Core Logic and Bug Fixes
 
-### Pull Request #2: test(swe-agent): Implement TDD cycle and session management tests
+### Pull Request #2: test(swe-agent): Implement TDD cycle and session management tests [DONE] 250e94a4
 
 -   **PR Title:** `test(swe-agent): Implement TDD cycle and session management tests`
 -   **Summary:** This PR implements tests for the core TDD execution loop and session management (stale and interrupted sessions). This includes the critical bug fix identified in the test plan where `GREEN` steps were not being marked as `DONE`.
