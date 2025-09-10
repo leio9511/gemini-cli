@@ -116,7 +116,7 @@ This cycle ensures that by the end of the process, we have a reliable test suite
   - [ ] Task: Run the test, confirm it passes.
   - [ ] Task: Add and verify tests for all other transitions in the "Code Review" and "Finalization" sections of the reference design doc.
 
-### Pull Request #5: chore(swe-agent): Remove old shell-based test suite
+### Pull Request #5: chore(swe-agent): Remove old shell-based test suite [DONE] 8b909610
 
 - **PR Title:** `chore(swe-agent): Remove old shell-based test suite`
 - **Summary:** Now that the new integration test suite is complete and providing comprehensive coverage, this PR removes the old, brittle, and redundant `*.test.sh` files and updates the project's testing scripts to remove any references to them.
