@@ -53,16 +53,6 @@ if [ -f "ACTIVE_PR.json" ]; then
   fi
 fi
 
-
-
-
-# If no active PR file exists, the first step is to create one.
-if [ ! -f "ACTIVE_PR.json" ]; then
-  echo "{}" | jq '.status = "INITIALIZING"' > ORCHESTRATION_STATE.json
-  echo "$INITIALIZATION_INSTRUCTION"
-  exit 0
-fi
-
 # If in a debugging state, provide the error log and strategic guidance.
 status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
 if [ "$status" == "DEBUGGING" ]; then
@@ -71,10 +61,13 @@ if [ "$status" == "DEBUGGING" ]; then
   HYPOTHESIZE_MAX_ATTEMPTS=2
   INSTRUMENTATION_MAX_ATTEMPTS=5
 
-  echo "DEBUGGING"
-  echo "Error log:"
-  echo "$error_log"
-  echo "Strategic guidance:"
+  echo "A test failed unexpectedly. You are now in a debugging state."
+  echo "Last error:"
+  echo "$(read_state "last_error")"
+  echo ""
+  echo "Your task is to:"
+  echo "1. Hypothesize about the cause of the error."
+  echo "2. Propose a fix."
   if [ "$debug_attempt_counter" -le "$HYPOTHESIZE_MAX_ATTEMPTS" ]; then
     echo "Hypothesize & Fix."
   elif [ "$debug_attempt_counter" -le "$INSTRUMENTATION_MAX_ATTEMPTS" ]; then
@@ -82,6 +75,14 @@ if [ "$status" == "DEBUGGING" ]; then
   else
     echo "Conclude the task is too complex. You should consider using the 'request_scope_reduction' tool."
   fi
+  exit 0
+fi
+
+# If no active PR file exists, the first step is to create one.
+if [ ! -f "ACTIVE_PR.json" ]; then
+  echo "{}" | jq '.status = "INITIALIZING"' > ORCHESTRATION_STATE.json
+  echo "$INITIALIZATION_INSTRUCTION"
+  exit 0
 fi
 
 if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' FINDINGS.json)" -eq 0 ]; then

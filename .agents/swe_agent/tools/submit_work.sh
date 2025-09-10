@@ -43,10 +43,12 @@ handle_awaiting_finalization_state() {
 }
 
 enter_debugging_state() {
+  error_message=$1
   current_attempts=$(read_state "debug_attempt_counter" || echo 0)
   new_attempts=$((current_attempts + 1))
   write_state "status" "DEBUGGING"
   write_state "debug_attempt_counter" "$new_attempts"
+  write_state "last_error" "$error_message"
 }
 
 handle_awaiting_analysis_state() {
@@ -95,9 +97,9 @@ set +e
 exit_code=$?
 set -e
 if [ "$exit_code" -eq 0 ] && [ "$expectation" == "FAIL" ]; then
-  enter_debugging_state 
+  enter_debugging_state "Test was expected to FAIL but PASSED."
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "PASS" ]; then
-  enter_debugging_state
+  enter_debugging_state "Unexpected test failure"
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
   echo '{"status": "NEEDS_ANALYSIS"}'
 else

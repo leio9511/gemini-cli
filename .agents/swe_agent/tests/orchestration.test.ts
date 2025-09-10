@@ -1,3 +1,9 @@
+/**
+ * @license
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -10,17 +16,17 @@ const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
-  tool: 'get_task' | 'submit_work',
+  tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
   args: string[] = [],
-  testDir: string
+  testDir: string,
 ) {
   const command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
-    ' '
+    ' ',
   )}`;
-  const env = { 
-    ...process.env, 
+  const env = {
+    ...process.env,
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
-    SKIP_PREFLIGHT: 'true'
+    SKIP_PREFLIGHT: 'true',
   };
   return await execAsync(command, { cwd: testDir, env: env });
 }
@@ -43,14 +49,25 @@ describe('SWE Agent Orchestration', () => {
     expect(stdout).toContain('Please read the plan file');
 
     // Verify state
-    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
     expect(state.status).toBe('INITIALIZING');
   });
 
   it('should transition from INITIALIZING to CREATING_BRANCH', async () => {
     // Setup: Start in INITIALIZING state
-    await fs.writeFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), JSON.stringify({ status: 'INITIALIZING' }));
-    await fs.writeFile(path.join(testDir, 'ACTIVE_PR.json'), JSON.stringify({ prTitle: 'test pr' }));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'INITIALIZING' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ prTitle: 'test pr' }),
+    );
 
     const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
 
@@ -58,7 +75,12 @@ describe('SWE Agent Orchestration', () => {
     expect(stdout).toContain('create a new branch');
 
     // Verify state
-    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
     expect(state.status).toBe('CREATING_BRANCH');
   });
 
@@ -67,9 +89,9 @@ describe('SWE Agent Orchestration', () => {
     const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
     const prContent = {
       tasks: [
-        { "name": "task 1", "status": "DONE" },
-        { "name": "task 2", "status": "DONE" }
-      ]
+        { name: 'task 1', status: 'DONE' },
+        { name: 'task 2', status: 'DONE' },
+      ],
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
 
@@ -84,20 +106,17 @@ describe('SWE Agent Orchestration', () => {
     const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
     const prContent = {
       tasks: [
-        { "name": "task 1", "status": "DONE", "tdd_steps": [] },
-        { 
-          "name": "task 2", 
-          "status": "TODO", 
-          "tdd_steps": [
-            { "description": "Do the thing", "status": "TODO" }
-          ] 
-        }
-      ]
+        { name: 'task 1', status: 'DONE', tdd_steps: [] },
+        {
+          name: 'task 2',
+          status: 'TODO',
+          tdd_steps: [{ description: 'Do the thing', status: 'TODO' }],
+        },
+      ],
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-
 
     expect(stdout).toContain('Do the thing');
   });
@@ -107,17 +126,20 @@ describe('SWE Agent Orchestration', () => {
     const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
     const prContent = {
       tasks: [
-        { 
-          "name": "task 1", 
-          "status": "TODO", 
-          "tdd_steps": [
-            { "type": "GREEN", "description": "Make test pass", "status": "TODO" }
-          ] 
-        }
-      ]
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'GREEN', description: 'Make test pass', status: 'TODO' },
+          ],
+        },
+      ],
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
-    await fs.writeFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), JSON.stringify({ status: 'EXECUTING_TDD' }));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
 
     await simulateAgentTurn('submit_work', ['"echo success"', 'PASS'], testDir);
 
@@ -131,20 +153,97 @@ describe('SWE Agent Orchestration', () => {
     const prContent = {
       tasks: [
         {
-          "name": "task 1",
-          "status": "TODO",
-          "tdd_steps": [
-            { "type": "RED", "description": "Make test fail", "status": "TODO" }
-          ]
-        }
-      ]
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'RED', description: 'Make test fail', status: 'TODO' },
+          ],
+        },
+      ],
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
-    await fs.writeFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), JSON.stringify({ status: 'EXECUTING_TDD' }));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
 
     // Simulate a failing red step
-    const { stdout } = await simulateAgentTurn('submit_work', ['"exit 1"', 'FAIL'], testDir);
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      ['"exit 1"', 'FAIL'],
+      testDir,
+    );
 
     expect(stdout).toContain('NEEDS_ANALYSIS');
+  });
+
+  it('should transition to DEBUGGING on unexpected test failure', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            {
+              type: 'GREEN',
+              description: 'This should pass but will fail',
+              status: 'TODO',
+            },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    // Simulate a green step that unexpectedly fails
+    await simulateAgentTurn('submit_work', ['"exit 1"', 'PASS'], testDir);
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('DEBUGGING');
+    expect(state.last_error).toContain('Unexpected test failure');
+  });
+
+  it('should provide debugging guidance when in DEBUGGING state', async () => {
+    // Setup: Set state to DEBUGGING
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        last_error: 'Something went wrong',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ tasks: [] }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    expect(stdout).toContain('A test failed unexpectedly');
+  });
+
+  it('should prevent recovery tools from being used too early', async () => {
+    // Setup: Set state to DEBUGGING with a low attempt count
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        debug_attempt_counter: 1,
+      }),
+    );
+
+    await expect(
+      simulateAgentTurn('request_scope_reduction', [], testDir),
+    ).rejects.toThrow('You must make more attempts');
   });
 });

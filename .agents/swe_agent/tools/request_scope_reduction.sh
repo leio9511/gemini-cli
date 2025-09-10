@@ -1,11 +1,12 @@
 #!/bin/bash
 
-source .agents/swe_agent/utils.sh
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+source "$SCRIPT_DIR/../utils.sh"
 
 debug_attempt_counter=$(read_state "debug_attempt_counter")
 
 if [ "$debug_attempt_counter" -lt 3 ]; then
-  echo "Error: Scope reduction is locked."
+  echo "Error: This tool is locked. You must make at least 3 debugging attempts before requesting a scope reduction. You have currently made $debug_attempt_counter attempt(s)." >&2
   exit 1
 fi
 

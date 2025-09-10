@@ -4,7 +4,6 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
 
 ---
 
-
 ## Phase 1: Restore "Mission Briefer" Capabilities to `get_task.sh`
 
 ### Pull Request #1: feat(swe-agent): Implement full instructional logic in get_task [DONE] b361b7ebe4a693a549b2ac9c64ea5ac7d780b96e
@@ -17,7 +16,6 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
   - New and modified tests in `.agents/swe_agent/tests/` will verify the new instructional outputs and logic.
 
 - **Planned Implementation Tasks:**
-
   - **Task 1: Implement Initialization Instruction**
     - [ ] **Test (Red):** In `tests/get_task.test.sh`, create a new test case where `ACTIVE_PR.json` does not exist. Assert that the output of `get_task.sh` is the full, multi-line instruction for parsing the master plan and creating the `ACTIVE_PR.json` file, as specified in the design doc.
     - [ ] **Implementation (Green):** In `tools/get_task.sh`, modify the logic that currently outputs `CREATE_PR`. Replace it with an `echo` statement containing the detailed instructional text.
@@ -34,8 +32,7 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
   - **Task 4: Implement TDD Safety Checkpoint Instruction**
     - [ ] **Test (Red):** In `tests/get_task.test.sh`, create a new test `test_safety_checkpoint_instruction.sh`. Create an `ACTIVE_PR.json` where the last completed TDD step was of type `GREEN` or `REFACTOR`.
     - [ ] **Assertion:** Assert that the output of `get_task.sh` is an instruction for the agent to create a safety checkpoint commit.
-    - [ ] **Implementation (Green):** In `tools/get_task.sh`, add logic to inspect the *last* completed task. If its type was `GREEN` or `REFACTOR`, return the commit instruction. This requires adding a `last_completed_step` field to `ORCHESTRATION_STATE.json` from the `submit_work.sh` script.
-
+    - [ ] **Implementation (Green):** In `tools/get_task.sh`, add logic to inspect the _last_ completed task. If its type was `GREEN` or `REFACTOR`, return the commit instruction. This requires adding a `last_completed_step` field to `ORCHESTRATION_STATE.json` from the `submit_work.sh` script.
 
 ---
 
@@ -50,7 +47,6 @@ This plan addresses critical deviations between the SWE Agent's design (`@docs/d
   - New tests in `.agents/swe_agent/tests/` will verify the two-step `NEEDS_ANALYSIS` workflow and the tool lock mechanism.
 
 - **Planned Implementation Tasks:**
-
   - **Task 1: Implement `NEEDS_ANALYSIS` Return Status**
     - [ ] **Test (Red):** In `tests/submit_work.test.sh`, create a new test `test_red_step_needs_analysis.sh`. Call `submit_work.sh` with `expectation="FAIL"` and a command that exits with a non-zero code.
     - [ ] **Assertion:** Assert that the script's standard output is the JSON string `{"status": "NEEDS_ANALYSIS"}`.

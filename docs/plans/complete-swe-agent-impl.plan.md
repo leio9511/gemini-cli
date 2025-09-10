@@ -83,7 +83,6 @@ The proposed design is to follow the existing design document (`@docs/designs/sw
 
 #### **Phase 2: Implement the Debugging Protocol**
 
-
 **Goal:** To implement the "Nudge and Unlock" debugging protocol to make the agent more resilient.
 
 **Pull Request #2: feat(swe-agent): Implement debugging protocol** [DONE] 17cd0065191bc65c4060805dcc0915408ac533ec
@@ -108,7 +107,6 @@ The proposed design is to follow the existing design document (`@docs/designs/sw
 ---
 
 #### **Phase 3: Implement Finalization and Loop Continuation**
-
 
 **Goal:** To implement the final phase of the workflow, where the work is committed and the agent prepares for the next cycle.
 

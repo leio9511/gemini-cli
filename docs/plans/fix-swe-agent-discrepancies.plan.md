@@ -2,7 +2,6 @@
 
 This plan addresses bugs and implementation discrepancies identified during a review of the SWE Agent against its design document (`docs/designs/swe-agent-workflow.md`). The goal is to improve the agent's reliability and fully align it with the specified architecture.
 
-
 ## Phase 1: Core Bug Fixes and Feature Implementation
 
 ### Pull Request #1: Fix Finalization Bug Preventing Workflow Completion [DONE] 2c5720ee
