@@ -252,7 +252,6 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
-
     await expect(
       simulateAgentTurn('request_scope_reduction', [], testDir),
     ).rejects.toThrow('This tool is locked.');
@@ -279,7 +278,12 @@ describe('SWE Agent Orchestration', () => {
     expect(stdout).toContain('All tasks are complete. Requesting code review.');
 
     // Verify state
-    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
     expect(state.status).toBe('CODE_REVIEW');
   });
 
@@ -301,7 +305,12 @@ describe('SWE Agent Orchestration', () => {
     } catch (e) {
       expect(e.code).toBe(1);
     }
-    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
     expect(state.status).toBe('HALTED');
   });
 
