@@ -68,7 +68,7 @@ This cycle ensures that by the end of the process, we have a reliable test suite
   - [ ] Task: Run the test, confirm it passes.
   - [ ] Task: Add and verify tests for all other transitions in the "TDD Cycle & Preflight Checks" section of the reference design doc.
 
-### Pull Request #3: test(swe-agent): Implement debugging and recovery cycle tests
+### Pull Request #3: test(swe-agent): Implement debugging and recovery cycle tests [DONE] cf35022e
 
 - **PR Title:** `test(swe-agent): Implement debugging and recovery cycle tests`
 - **Summary:** This PR focuses on the robustness of the agent by implementing tests for all "unhappy paths": the debugging cycle, the re-planning workflow, and the escalation process. It will verify the "nudge and unlock" mechanism for recovery tools.
