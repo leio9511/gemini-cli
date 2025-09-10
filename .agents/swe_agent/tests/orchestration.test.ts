@@ -225,7 +225,17 @@ describe('SWE Agent Orchestration', () => {
     );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ tasks: [] }),
+      JSON.stringify({
+        tasks: [
+          {
+            name: 'task 1',
+            status: 'TODO',
+            tdd_steps: [
+              { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            ],
+          },
+        ],
+      }),
     );
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
@@ -242,8 +252,68 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+
     await expect(
       simulateAgentTurn('request_scope_reduction', [], testDir),
-    ).rejects.toThrow('You must make more attempts');
+    ).rejects.toThrow('This tool is locked.');
+  });
+
+  it('should transition to CODE_REVIEW when all tasks are done', async () => {
+    // Setup: Create an ACTIVE_PR.json where all tasks are done
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        { name: 'task 1', status: 'DONE' },
+        { name: 'task 2', status: 'DONE' },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    // Verify output
+    expect(stdout).toContain('All tasks are complete. Requesting code review.');
+
+    // Verify state
+    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    expect(state.status).toBe('CODE_REVIEW');
+  });
+
+  it('should transition to HALTED on a merge conflict', async () => {
+    // Setup: Set state to MERGING_BRANCH
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'MERGING_BRANCH' }),
+    );
+    // Create a dummy ACTIVE_PR.json
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ tasks: [] }),
+    );
+
+    // Simulate a merge conflict
+    try {
+      await simulateAgentTurn('submit_work', ['"exit 1"'], testDir);
+    } catch (e) {
+      expect(e.code).toBe(1);
+    }
+    const state = JSON.parse(await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'));
+    expect(state.status).toBe('HALTED');
+  });
+
+  it('should take no action in HALTED state', async () => {
+    // Setup: Set state to HALTED
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'HALTED' }),
+    );
+
+    await expect(simulateAgentTurn('get_task', [], testDir)).rejects.toThrow(
+      'Command failed',
+    );
   });
 });

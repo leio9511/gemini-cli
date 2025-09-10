@@ -43,18 +43,29 @@ The \`ACTIVE_PR.json\` file should be in the following format:
 }
 EOF
 
-# Check for stale session.
 if [ -f "ACTIVE_PR.json" ]; then
   # If all tasks are done, this is a stale session.
   if ! jq -e '.tasks[] | select(.status!="DONE")' ACTIVE_PR.json > /dev/null; then
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "status" "CODE_REVIEW"
+    release_lock
+    trap - EXIT INT TERM
     rm ACTIVE_PR.json
-    echo "$INITIALIZATION_INSTRUCTION"
+    echo "All tasks are complete. Requesting code review."
     exit 0
   fi
 fi
 
+
 # If in a debugging state, provide the error log and strategic guidance.
 status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
+
+if [ "$status" == "HALTED" ]; then
+  echo "Halting operation."
+  exit 1
+fi
+
 if [ "$status" == "DEBUGGING" ]; then
   debug_attempt_counter=$(read_state "debug_attempt_counter")
   error_log=$(cat error.log)
@@ -133,7 +144,7 @@ case "$has_todo_tasks" in
     write_state "status" "CODE_REVIEW"
     release_lock
     trap - EXIT INT TERM
-    echo "REQUEST_REVIEW"
+    echo "All tasks are complete. Requesting code review."
     exit 0
     ;;
 esac

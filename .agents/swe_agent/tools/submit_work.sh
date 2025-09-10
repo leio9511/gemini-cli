@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 if ! command -v jq &> /dev/null
 then
@@ -80,6 +79,19 @@ case "$status" in
     ;;
   "AWAITING_ANALYSIS")
     handle_awaiting_analysis_state "$1"
+    exit 0
+    ;;
+  "MERGING_BRANCH")
+    set +e
+    (eval "$1")
+    exit_code=$?
+    set -e
+    if [ "$exit_code" -ne 0 ]; then
+      write_state "status" "HALTED"
+      echo "Merge conflict"
+      exit 1
+    fi
+    set -e
     exit 0
     ;;
 esac
