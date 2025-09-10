@@ -40,8 +40,10 @@ packages/cli/src/generated/
 .integration-tests/
 packages/vscode-ide-companion/*.vsix
 
+
 # Agent Workflow Files
 /ACTIVE_PR.md
+/ACTIVE_PR.json
 /REVIEW_COMMENTS.md
 packages/vscode-ide-companion/*.vsix
 
