@@ -10,8 +10,8 @@
 - **Action:**
   1.  Analyze the code in the `diff_file` against the high-level goals and detailed specifications in the `master_plan` document.
   2.  Use the `spec_file` to understand the specific tasks that were completed.
-  2.  Evaluate the code based on the Key Focus Areas checklist.
-  3.  Your entire output MUST be a single JSON object conforming to the schema below.
+  3.  Evaluate the code based on the Key Focus Areas checklist.
+  4.  Your entire output MUST be a single JSON object conforming to the schema below.
 - **Output (JSON Schema):**
   {
   "overall_assessment": "(EXCELLENT|GOOD_WITH_MINOR_SUGGESTIONS|NEEDS_ATTENTION|NEEDS_IMMEDIATE_REWORK)",

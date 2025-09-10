@@ -16,24 +16,29 @@ if [ ! -s "$DIFF_FILE" ]; then
   exit 0
 fi
 
+# 3. Extract the master plan path from the spec file.
+if [ ! -f "$SPEC_FILE" ]; then
+  echo "{\"error\": \"Spec file ACTIVE_PR.md not found.\"}"
+  rm "$DIFF_FILE"
+  exit 1
+fi
+MASTER_PLAN_PATH=$(grep -o '@\S*' "$SPEC_FILE" | head -n 1)
+if [ -z "$MASTER_PLAN_PATH" ]; then
+  echo "{\"error\": \"Could not find master plan path in ACTIVE_PR.md.\"}"
+  rm "$DIFF_FILE"
+  exit 1
+fi
 
-
-
-
-
-
-
-
-# 3. Define the prompt for the Code Review Agent.
+# 4. Define the prompt for the Code Review Agent.
 #    The agent's persona and main instructions are loaded from the settings file.
 #    This prompt invokes the agent's `perform_code_review` capability,
-#    providing the active PR spec (which contains the @-reference to the master plan) and the diff.
-PROMPT="perform_code_review(spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
+#    providing the master plan, the active PR spec, and the diff.
+PROMPT="perform_code_review(master_plan=$MASTER_PLAN_PATH, spec_file=@$SPEC_FILE, diff_file=@$DIFF_FILE)"
 
-# 4. Run the Code Review Agent and capture its JSON output.
+# 5. Run the Code Review Agent and capture its JSON output.
 REVIEW_RESULT=$($GEMINI_CLI --cf "$REVIEW_SETTINGS_FILE" -p "$PROMPT")
 
-# 5. Clean up the temporary diff file
+# 6. Clean up the temporary diff file
 rm "$DIFF_FILE"
-# 6. Return the JSON result
+# 7. Return the JSON result
 echo "$REVIEW_RESULT"
