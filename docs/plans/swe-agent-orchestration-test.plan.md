@@ -54,7 +54,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case to verify `npm run preflight` is triggered on a successful `PASS` expectation in `submit_work`.
   - [ ] Task: Add test case for `EXECUTING_TDD` -> `DEBUGGING` when the `preflight` check fails.
 
-### Pull Request #4: Add Tests for Code Review Cycle
+### Pull Request #4: Add Tests for Code Review Cycle [DONE] 958c9905
 
 - **PR Title:** `test(swe-agent): Add test coverage for code review cycle`
 - **Summary:** This PR implements integration tests for the code review state transitions. It ensures the orchestrator correctly handles review approval, the creation of new tasks from findings, and the re-review process.
