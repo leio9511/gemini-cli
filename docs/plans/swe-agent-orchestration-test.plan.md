@@ -66,9 +66,10 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `CODE_REVIEW` (Has Findings) -> `EXECUTING_TDD`.
   - [ ] Task: Add test case for `EXECUTING_TDD` (Fix Submitted) -> `CODE_REVIEW`.
 
+
 ## Phase 3: Debugging, Finalization, and Cleanup
 
-### Pull Request #5: Add Tests for Debugging and Recovery Cycle
+### Pull Request #5: Add Tests for Debugging and Recovery Cycle [DONE] c15f61f0
 
 - **PR Title:** `test(swe-agent): Add test coverage for debugging and recovery`
 - **Summary:** This PR implements integration tests for the debugging and recovery flows. It covers the transitions for successful fixes, re-planning after repeated failures, and escalation.
