@@ -307,6 +307,41 @@ describe('SWE Agent Orchestration', () => {
     expect(stdout).toContain('A test failed unexpectedly');
   });
 
+  it('should transition from DEBUGGING to EXECUTING_TDD after a successful fix', async () => {
+    // Setup: Set state to DEBUGGING
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        last_error: 'Something went wrong',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({
+        tasks: [
+          {
+            name: 'task 1',
+            status: 'TODO',
+            tdd_steps: [
+              { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            ],
+          },
+        ],
+      }),
+    );
+
+    // Simulate submitting a fix
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      ['"echo success"'],
+      testDir,
+    );
+
+    // Verify output
+    expect(stdout).toContain('Your goal is to complete the next TDD step');
+  });
+
   it('should prevent recovery tools from being used too early', async () => {
     // Setup: Set state to DEBUGGING with a low attempt count
     await fs.writeFile(
@@ -320,6 +355,94 @@ describe('SWE Agent Orchestration', () => {
     await expect(
       simulateAgentTurn('request_scope_reduction', [], testDir),
     ).rejects.toThrow('This tool is locked.');
+  });
+
+  it('should prevent escalation when debug attempts are low', async () => {
+    // Setup: Set state to DEBUGGING with a low attempt count
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        debug_attempt_counter: 1,
+      }),
+    );
+
+    await expect(
+      simulateAgentTurn('escalate_for_external_help', [], testDir),
+    ).rejects.toThrow('This tool is locked.');
+  });
+
+  it('should transition to REPLANNING after enough failed debug attempts', async () => {
+    // Setup: Set state to DEBUGGING with a high attempt count
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        debug_attempt_counter: 10, // High enough to unlock the tool
+      }),
+    );
+
+    const { stdout } = await simulateAgentTurn(
+      'request_scope_reduction',
+      [],
+      testDir,
+    );
+
+    expect(stdout).toContain('Entering REPLANNING state');
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('REPLANNING');
+  });
+
+  it('should provide re-planning instructions when in REPLANNING state', async () => {
+    // Setup: Set state to REPLANNING
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'REPLANNING' }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    expect(stdout).toContain('Please provide an updated ACTIVE_PR.json');
+  });
+
+  it('should transition from REPLANNING to EXECUTING_TDD after submitting a new plan', async () => {
+    // Setup: Set state to REPLANNING
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'REPLANNING' }),
+    );
+    const updatedPR = {
+      tasks: [{ name: 'new task', status: 'TODO', tdd_steps: [] }],
+    };
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify(updatedPR),
+    );
+
+    const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
+    expect(stdout).toContain('Your goal is to complete the next TDD step');
+  });
+
+  it('should escalate when requested after enough debug attempts', async () => {
+    // Setup: Set state to DEBUGGING with a high attempt count
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        debug_attempt_counter: 10,
+      }),
+    );
+
+    const { stdout } = await simulateAgentTurn(
+      'escalate_for_external_help',
+      [],
+      testDir,
+    );
+    expect(stdout).toContain('Escalating for external help.');
   });
 
   it('should transition to CODE_REVIEW when all tasks are done', async () => {
