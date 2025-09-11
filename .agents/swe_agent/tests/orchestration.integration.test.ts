@@ -92,6 +92,82 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('CREATING_BRANCH');
   });
 
+  it('should transition to HALTED when ACTIVE_PR.json is malformed', async () => {
+    // Setup: Start in INITIALIZING state
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'INITIALIZING' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      'this is not json',
+    );
+
+    await expect(
+      simulateAgentTurn('submit_work', [], testDir),
+    ).rejects.toThrow();
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('HALTED');
+  });
+
+  it('should transition from CREATING_BRANCH to EXECUTING_TDD', async () => {
+    // Setup: Start in CREATING_BRANCH state
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'CREATING_BRANCH' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({
+        prTitle: 'test pr',
+        tasks: [
+          {
+            name: 'task 1',
+            status: 'TODO',
+            tdd_steps: [
+              { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
+
+    // Verify output
+    expect(stdout).toContain('Your goal is to complete the next TDD step');
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('EXECUTING_TDD');
+  });
+
+  it('should clean up stale sessions', async () => {
+    // Setup: Create a dummy state file but no ACTIVE_PR.json
+    const statePath = path.join(testDir, 'ORCHESTRATION_STATE.json');
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    expect(stdout).toContain('Stale session cleaned. Please start again.');
+    // Verify the stale state file is deleted
+    await expect(fs.access(statePath)).rejects.toThrow();
+  });
+
   it('should clean up completed sessions', async () => {
     // Setup: Create an ACTIVE_PR.json where all tasks are done
     const activePRPath = path.join(testDir, 'ACTIVE_PR.json');

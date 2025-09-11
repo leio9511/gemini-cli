@@ -6,7 +6,20 @@ if [ -n "$1" ]; then
   cd "$1"
 fi
 
+
 source "$(dirname "$0")/../utils.sh"
+
+
+# Early exit for stale sessions to prevent unintended operations.
+if [ -f "ORCHESTRATION_STATE.json" ] && [ ! -f "ACTIVE_PR.json" ]; then
+  status=$(jq -r .status ORCHESTRATION_STATE.json)
+  if [ "$status" != "HALTED" ]; then
+    rm ORCHESTRATION_STATE.json
+    echo "Stale session cleaned. Please start again."
+    exit 0
+  fi
+fi
+
 
 
 
