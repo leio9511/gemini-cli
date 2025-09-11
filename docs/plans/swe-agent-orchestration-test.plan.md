@@ -4,7 +4,6 @@
 
 This plan details the process of replacing the existing brittle shell-script-based tests for the SWE Agent with a single, comprehensive integration test suite using Vitest, as outlined in the [original design document](docs/designs/swe-agent-orchestration-test.md). The plan accounts for the existing implementation and focuses on filling the gaps in test coverage.
 
-
 ## Phase 1: Test Infrastructure and Initialization
 
 ### Pull Request #1: Refactor and Enhance Test Infrastructure [DONE] 2788e24196c87ccb04116c2b5939cc38075e1a47

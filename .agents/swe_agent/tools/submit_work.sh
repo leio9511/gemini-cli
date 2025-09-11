@@ -58,9 +58,11 @@ enter_debugging_state() {
 handle_awaiting_analysis_state() {
   analysis_decision=$1
   if [ "$analysis_decision" == "SUCCESS" ]; then
-    # Mark the current TDD step as DONE
-    jq '(.tasks[] | .tdd_steps[] | select(.status=="TODO")).status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
+    mark_current_step_done
     write_state "status" "EXECUTING_TDD"
+  elif [ "$analysis_decision" == "FAILURE" ]; then
+    write_state "status" "DEBUGGING"
+    write_state "last_error" "Analysis failed"
   fi
 }
 
@@ -123,17 +125,23 @@ elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "PASS" ]; then
   enter_debugging_state "Unexpected test failure"
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
   echo '{"status": "NEEDS_ANALYSIS"}'
+  # This was a RED step, and the test failed as expected.
+  # The goal of a RED step is to see a failing test, so this step is now DONE.
+  mark_current_step_done
 else
   # Run preflight checks for tasks that are expected to pass to ensure code quality.
   if [ "$expectation" == "PASS" ]; then
     if [ "$SKIP_PREFLIGHT" != "true" ]; then
-      npm run preflight
+      set +e
+      preflight_output=$(npm run preflight 2>&1)
+      exit_code=$?
+      set -e
+      if [ "$exit_code" -ne 0 ]; then
+        enter_debugging_state "Preflight check failed: $preflight_output"
+        exit 1
+      fi
     fi
-    # Mark the current TDD step as DONE
-    task_index=$(jq 'map(.status == "TODO") | index(true)' <<< "$(jq -c '[.tasks[]]' ACTIVE_PR.json)")
-    step_index=$(jq --argjson i "$task_index" '.[$i].tdd_steps | map(.status == "TODO") | index(true)' <<< "$(jq -c '.tasks' ACTIVE_PR.json)")
-    
-    jq --argjson ti "$task_index" --argjson si "$step_index" '.tasks[$ti].tdd_steps[$si].status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
+    mark_current_step_done
   fi
 fi
 

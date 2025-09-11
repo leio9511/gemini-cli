@@ -19,22 +19,29 @@ async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
   args: string[] = [],
   testDir: string,
-  mocks: Record<string, string> = {},
+  options: {
+    env?: Record<string, string>;
+    mocks?: Record<string, string>;
+  } = {},
 ) {
   let command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
     ' ',
   )}`;
 
   // Check if the command is in mocks
-  const mockKey = Object.keys(mocks).find((key) => command.includes(key));
-  if (mockKey) {
-    command = mocks[mockKey];
+  if (options.mocks) {
+    const mockKey = Object.keys(options.mocks).find((key) =>
+      command.includes(key),
+    );
+    if (mockKey) {
+      command = options.mocks[mockKey];
+    }
   }
 
   const env = {
     ...process.env,
+    ...options.env,
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
-    SKIP_PREFLIGHT: 'true',
   };
   return await execAsync(command, { cwd: testDir, env: env });
 }
@@ -156,10 +163,7 @@ describe('SWE Agent Orchestration', () => {
   it('should clean up stale sessions', async () => {
     // Setup: Create a dummy state file but no ACTIVE_PR.json
     const statePath = path.join(testDir, 'ORCHESTRATION_STATE.json');
-    await fs.writeFile(
-      statePath,
-      JSON.stringify({ status: 'EXECUTING_TDD' }),
-    );
+    await fs.writeFile(statePath, JSON.stringify({ status: 'EXECUTING_TDD' }));
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
 
@@ -225,40 +229,17 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD' }),
     );
 
-    await simulateAgentTurn('submit_work', ['"echo success"', 'PASS'], testDir);
+    await simulateAgentTurn(
+      'submit_work',
+      ['"echo success"', 'PASS'],
+      testDir,
+      {
+        env: { SKIP_PREFLIGHT: 'true' },
+      },
+    );
 
     const updatedPR = JSON.parse(await fs.readFile(activePRPath, 'utf-8'));
     expect(updatedPR.tasks[0].tdd_steps[0].status).toBe('DONE');
-  });
-
-  it('should transition to NEEDS_ANALYSIS on a red step', async () => {
-    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
-    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
-    const prContent = {
-      tasks: [
-        {
-          name: 'task 1',
-          status: 'TODO',
-          tdd_steps: [
-            { type: 'RED', description: 'Make test fail', status: 'TODO' },
-          ],
-        },
-      ],
-    };
-    await fs.writeFile(activePRPath, JSON.stringify(prContent));
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'EXECUTING_TDD' }),
-    );
-
-    // Simulate a failing red step
-    const { stdout } = await simulateAgentTurn(
-      'submit_work',
-      ['"exit 1"', 'FAIL'],
-      testDir,
-    );
-
-    expect(stdout).toContain('NEEDS_ANALYSIS');
   });
 
   it('should transition to DEBUGGING on unexpected test failure', async () => {
@@ -414,7 +395,212 @@ describe('SWE Agent Orchestration', () => {
     const mocks = {
       'get_task.sh': 'echo "mocked output"',
     };
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir, mocks);
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir, {
+      mocks,
+    });
     expect(stdout).toContain('mocked output');
+  });
+
+  it('should mark a green TDD step as DONE after a successful run', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'GREEN', description: 'Make test pass', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    await simulateAgentTurn(
+      'submit_work',
+      ['"echo success"', 'PASS'],
+      testDir,
+      {
+        env: { SKIP_PREFLIGHT: 'true' },
+      },
+    );
+
+    const updatedPR = JSON.parse(await fs.readFile(activePRPath, 'utf-8'));
+    expect(updatedPR.tasks[0].tdd_steps[0].status).toBe('DONE');
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('EXECUTING_TDD');
+  });
+
+  it('should transition to NEEDS_ANALYSIS on a red step', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'RED', description: 'Make test fail', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    // Simulate a failing red step
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      ['"exit 1"', 'FAIL'],
+      testDir,
+    );
+
+    expect(stdout).toContain('NEEDS_ANALYSIS');
+  });
+
+  it('should get the next TDD step', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            { type: 'GREEN', description: 'Make test pass', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    expect(stdout).toContain('Make test fail');
+  });
+
+  it('should transition from Awaiting Analysis to EXECUTING_TDD on SUCCESS', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to AWAITING_ANALYSIS
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'RED', description: 'Make test fail', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'AWAITING_ANALYSIS' }),
+    );
+
+    await simulateAgentTurn('submit_work', ['SUCCESS'], testDir);
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('EXECUTING_TDD');
+  });
+
+  it('should transition from Awaiting Analysis to DEBUGGING on FAILURE', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to AWAITING_ANALYSIS
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'RED', description: 'Make test fail', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'AWAITING_ANALYSIS' }),
+    );
+
+    await simulateAgentTurn('submit_work', ['FAILURE'], testDir);
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('DEBUGGING');
+  });
+
+  it('should transition to DEBUGGING when the preflight check fails', async () => {
+    // Setup: Create an ACTIVE_PR.json with a TODO task and set state to EXECUTING_TDD
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'GREEN', description: 'Make test pass', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    // Create a mock npm script that fails
+    const binDir = path.join(testDir, 'node_modules', '.bin');
+    await fs.mkdir(binDir, { recursive: true });
+    await fs.writeFile(
+      path.join(binDir, 'npm'),
+      '#!/bin/bash\nif [ "$1" == "run" ] && [ "$2" == "preflight" ]; then exit 1; else exit 0; fi',
+      { mode: 0o755 },
+    );
+
+    await expect(
+      simulateAgentTurn('submit_work', ['"echo success"', 'PASS'], testDir, {
+        env: { SKIP_PREFLIGHT: 'false' },
+      }),
+    ).rejects.toThrow();
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('DEBUGGING');
   });
 });
