@@ -27,10 +27,12 @@ You are the **Plan Agent**. Your purpose is to take a high-level, detailed desig
 
 A design document detailing a new feature for user profile theme customization. The design doc specifies a new database field, two new API endpoints, and three specific integration test cases.
 
+
 **Example Output Structure (from the template):**
 
 ```markdown
 # Feature Plan: User Profile Theme Customization
+**Reference Design Doc:** @docs/designs/user-profile-theme.md
 
 ## Phase 1: Backend API and Database Schema
 

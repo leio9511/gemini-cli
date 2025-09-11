@@ -1,8 +1,22 @@
 #!/bin/bash
 set -e
 
-DESIGN_DOC_PATH=$1
-GENERATED_PLAN_PATH=$2
+TOOL_ARGS=$(cat)
+
+# Extract paths from the JSON string using jq.
+DESIGN_DOC_PATH=$(echo "$TOOL_ARGS" | jq -r '.design_doc_path')
+GENERATED_PLAN_PATH=$(echo "$TOOL_ARGS" | jq -r '.generated_plan_path')
+
+if [ -z "$DESIGN_DOC_PATH" ] || [ "$DESIGN_DOC_PATH" == "null" ]; then
+  echo "Error: Could not parse design_doc_path from the input: $TOOL_ARGS" >&2
+  exit 1
+fi
+
+if [ -z "$GENERATED_PLAN_PATH" ] || [ "$GENERATED_PLAN_PATH" == "null" ]; then
+  echo "Error: Could not parse generated_plan_path from the input: $TOOL_ARGS" >&2
+  exit 1
+fi
+
 GEMINI_CLI="gemini"
 
 PROMPT=$(cat <<EOF
@@ -10,6 +24,7 @@ You are an expert engineering manager serving as a quality gate. Your sole task 
 You must verify two critical principles:
 1.  **1:1 Mapping and Granularity:** Every single requirement, state transition, and test case from the design document MUST have a corresponding, explicit "Planned Implementation Task" in the generated plan.
 2.  **No Vague Tasks:** The plan MUST NOT contain any vague, "catch-all" tasks like "implement the rest of the tests." Every task must be atomic and specific.
+3.  **Reference Design Doc:** The plan MUST contain a reference to the original design document, in the format \`**Reference Design Doc:** @[path/to/design/doc.md]\`.
 Analyze the two files provided. Your output MUST be a JSON object with a single key, "findings", which is an array of strings.
 - If the plan is perfect, return an empty array: \`{"findings": []}\`.
 - If there are issues, for each issue, add a descriptive string to the array.
@@ -21,8 +36,3 @@ EOF
 REVIEW_RESULT=$($GEMINI_CLI -p "$PROMPT")
 
 echo "$REVIEW_RESULT"
-
-
-
-
-
