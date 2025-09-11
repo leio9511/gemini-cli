@@ -352,6 +352,121 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('CODE_REVIEW');
   });
 
+  it('should transition from CODE_REVIEW to AWAITING_FINALIZATION on approval', async () => {
+    // Setup: Set state to CODE_REVIEW
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'CODE_REVIEW' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ tasks: [] }),
+    );
+
+    // Simulate an approved code review
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      ['\'{"findings":[]}\''],
+      testDir,
+    );
+
+    // Verify output
+    expect(stdout).toContain('Code review approved');
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('AWAITING_FINALIZATION');
+  });
+
+  it('should transition from CODE_REVIEW to EXECUTING_TDD when there are findings', async () => {
+    // Setup: Set state to CODE_REVIEW
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'CODE_REVIEW' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ tasks: [] }),
+    );
+
+    // Simulate a code review with findings
+    const findings = [
+      {
+        file_path: 'src/index.js',
+        description: 'Fix this',
+        recommendation: 'Do that',
+      },
+    ];
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      [`'${JSON.stringify({ findings })}'`],
+      testDir,
+    );
+
+    // Verify output
+    expect(stdout).toContain('New tasks have been added');
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('EXECUTING_TDD');
+  });
+
+  it('should transition from EXECUTING_TDD to CODE_REVIEW after a fix is submitted', async () => {
+    // Setup: Create an ACTIVE_PR.json with a single task to fix a finding
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'GREEN', description: 'Fix the finding', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD' }),
+    );
+
+    // Simulate submitting the fix
+    await simulateAgentTurn(
+      'submit_work',
+      ['"echo success"', 'PASS'],
+      testDir,
+      {
+        env: { SKIP_PREFLIGHT: 'true' },
+      },
+    );
+
+    // Now all tasks are done, so calling get_task should transition to CODE_REVIEW
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    // Verify output
+    expect(stdout).toContain('All tasks are complete. Requesting code review.');
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('CODE_REVIEW');
+  });
+
   it('should transition to HALTED on a merge conflict', async () => {
     // Setup: Set state to MERGING_BRANCH
     await fs.writeFile(

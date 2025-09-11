@@ -34,7 +34,6 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `INITIALIZING` -> `HALTED` when `ACTIVE_PR.json` is malformed.
   - [ ] Task: Add test case for `CREATING_BRANCH` -> `EXECUTING_TDD` transition.
 
-
 ## Phase 2: Core TDD and Code Review Cycles
 
 ### Pull Request #3: Implement Bug Fix and Add Tests for TDD Cycle [DONE] 0aeada92
