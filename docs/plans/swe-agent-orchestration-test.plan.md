@@ -1,4 +1,5 @@
 # Feature Plan: SWE Agent Orchestration Test Enhancements
+
 **Reference Design Doc:** @docs/designs/swe-agent-orchestration-test.md
 
 This plan details the process of replacing the existing brittle shell-script-based tests for the SWE Agent with a single, comprehensive integration test suite using Vitest, as outlined in the [original design document](docs/designs/swe-agent-orchestration-test.md). The plan accounts for the existing implementation and focuses on filling the gaps in test coverage.

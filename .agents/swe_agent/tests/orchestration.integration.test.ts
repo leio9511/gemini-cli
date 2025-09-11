@@ -19,10 +19,18 @@ async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
   args: string[] = [],
   testDir: string,
+  mocks: Record<string, string> = {},
 ) {
-  const command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
+  let command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
     ' ',
   )}`;
+
+  // Check if the command is in mocks
+  const mockKey = Object.keys(mocks).find((key) => command.includes(key));
+  if (mockKey) {
+    command = mocks[mockKey];
+  }
+
   const env = {
     ...process.env,
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
@@ -324,5 +332,13 @@ describe('SWE Agent Orchestration', () => {
     await expect(simulateAgentTurn('get_task', [], testDir)).rejects.toThrow(
       'Command failed',
     );
+  });
+
+  it('should use mocked commands when provided', async () => {
+    const mocks = {
+      'get_task.sh': 'echo "mocked output"',
+    };
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir, mocks);
+    expect(stdout).toContain('mocked output');
   });
 });
