@@ -34,9 +34,10 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `INITIALIZING` -> `HALTED` when `ACTIVE_PR.json` is malformed.
   - [ ] Task: Add test case for `CREATING_BRANCH` -> `EXECUTING_TDD` transition.
 
+
 ## Phase 2: Core TDD and Code Review Cycles
 
-### Pull Request #3: Implement Bug Fix and Add Tests for TDD Cycle
+### Pull Request #3: Implement Bug Fix and Add Tests for TDD Cycle [DONE] 0aeada92
 
 - **PR Title:** `fix(swe-agent): Ensure green TDD steps are marked as DONE`
 - **Summary:** This PR addresses a bug where successful `GREEN` TDD steps were not being marked as `DONE`. It also implements the full suite of integration tests for the core TDD cycle, including preflight checks and the `NEEDS_ANALYSIS` flow.
