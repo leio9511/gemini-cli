@@ -9,7 +9,7 @@ DEFAULT_SETTINGS_FILE=".gemini/settings.json"
 GEMINI_CLI="gemini"
 
 # 2. Generate the diff. If there are no changes, exit gracefully.
-git diff main...HEAD > "$DIFF_FILE"
+git diff -U10000 main...HEAD > "$DIFF_FILE"
 if [ ! -s "$DIFF_FILE" ]; then
   echo "{\"error\": \"No changes detected between this branch and main.\"}"
   rm "$DIFF_FILE"
