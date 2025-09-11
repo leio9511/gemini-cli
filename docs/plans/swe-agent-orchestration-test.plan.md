@@ -21,7 +21,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Update the `execAsync` call within `simulateAgentTurn` to use the provided mocks if a command matches.
   - [ ] Task: Add a test case to confirm that a mocked command is called instead of the real command.
 
-### Pull Request #2: Add Tests for Initialization and Session Management
+### Pull Request #2: Add Tests for Initialization and Session Management [DONE] 4f619d88c0bb7b8d51286c01ee1f7872a8cff334
 
 - **PR Title:** `test(swe-agent): Add test coverage for initialization and session management`
 - **Summary:** This PR adds comprehensive test coverage for the initial state transitions and session management logic of the SWE Agent orchestrator.
