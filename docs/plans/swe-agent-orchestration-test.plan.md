@@ -4,9 +4,10 @@
 
 This plan details the process of replacing the existing brittle shell-script-based tests for the SWE Agent with a single, comprehensive integration test suite using Vitest, as outlined in the [original design document](docs/designs/swe-agent-orchestration-test.md). The plan accounts for the existing implementation and focuses on filling the gaps in test coverage.
 
+
 ## Phase 1: Test Infrastructure and Initialization
 
-### Pull Request #1: Refactor and Enhance Test Infrastructure
+### Pull Request #1: Refactor and Enhance Test Infrastructure [DONE] 2788e24196c87ccb04116c2b5939cc38075e1a47
 
 - **PR Title:** `refactor(swe-agent): Align orchestration test with design spec`
 - **Summary:** This PR aligns the existing test infrastructure with the design specification. It renames the primary integration test file and enhances the `simulateAgentTurn` helper function to support mocking of external commands (e.g., `git`, `npm`). This is a foundational step that enables more complex state transition testing in subsequent PRs.
