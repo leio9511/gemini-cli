@@ -86,19 +86,44 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `REPLANNING` -> `EXECUTING_TDD` when an updated `ACTIVE_PR.json` is submitted.
   - [ ] Task: Add test case for `DEBUGGING` -> Escalation when `escalate_for_external_help` is called.
 
-### Pull Request #6: Add Tests for Finalization and Cleanup
+### Pull Request #6: Port Finalization Tests and Verify Squashed Commit
 
-- **PR Title:** `test(swe-agent): Add test coverage for finalization and merge workflow`
-- **Summary:** This PR completes the test suite by porting the finalization logic tests from `test_finalization.sh` to the Vitest integration test. It also adds coverage for the automated git merge workflow, the terminal `HALTED` state, and removes the now-redundant shell script tests.
+- **PR Title:** `test(swe-agent): Port finalization tests and verify squashed commit`
+- **Summary:** This PR ports the initial finalization logic tests from `test_finalization.sh` to the Vitest integration test, specifically covering the transition to `FINALIZE_COMPLETE` and verifying the squashed commit.
+- **Verification Plan:**
+  - All newly added test cases must pass.
+- **Planned Implementation Tasks:**
+  - [ ] Task: Port test case from `test_finalization.sh` for `AWAITING_FINALIZATION` -> `FINALIZE_COMPLETE` (verifies squashed commit).
+
+### Pull Request #7: Add Tests for Plan Update Workflow
+
+- **PR Title:** `test(swe-agent): Add test coverage for plan update workflow`
+- **Summary:** This PR adds test coverage for the state transitions related to updating the plan after finalization is complete.
+- **Verification Plan:**
+  - All newly added test cases must pass.
+- **Planned Implementation Tasks:**
+  - [ ] Task: Port test case from `test_finalization.sh` for `FINALIZE_COMPLETE` -> Get "Update Plan" Instruction.
+  - [ ] Task: Add test case for `FINALIZE_COMPLETE` -> `PLAN_UPDATED`.
+
+### Pull Request #8: Add Tests for Branch Merging Workflow
+
+- **PR Title:** `test(swe-agent): Add test coverage for branch merging workflow`
+- **Summary:** This PR adds test coverage for the automated git merge workflow, handling both successful merges and merge conflicts.
+- **Verification Plan:**
+  - All newly added test cases must pass.
+- **Planned Implementation Tasks:**
+  - [ ] Task: Add test case for `PLAN_UPDATED` -> `MERGING_BRANCH`.
+  - [ ] Task: Add test case for `MERGING_BRANCH` -> `INITIALIZING` after a successful merge.
+  - [ ] Task: Add test case for `MERGING_BRANCH` -> `HALTED` on merge conflict.
+
+### Pull Request #9: Verify Terminal State and Cleanup
+
+- **PR Title:** `test(swe-agent): Verify terminal state and remove old tests`
+- **Summary:** This PR adds a test to ensure `HALTED` is a terminal state and removes the now-redundant shell script tests.
 - **Verification Plan:**
   - All newly added test cases must pass.
   - The `test_finalization.sh` file must be deleted.
 - **Planned Implementation Tasks:**
-  - [ ] Task: Port test case from `test_finalization.sh` for `AWAITING_FINALIZATION` -> `FINALIZE_COMPLETE` (verifies squashed commit).
-  - [ ] Task: Port test case from `test_finalization.sh` for `FINALIZE_COMPLETE` -> Get "Update Plan" Instruction.
-  - [ ] Task: Add test case for `FINALIZE_COMPLETE` -> `PLAN_UPDATED`.
-  - [ ] Task: Add test case for `PLAN_UPDATED` -> `MERGING_BRANCH`.
-  - [ ] Task: Add test case for `MERGING_BRANCH` -> `INITIALIZING` after a successful merge.
-  - [ ] Task: Add test case for `MERGING_BRANCH` -> `HALTED` on merge conflict.
   - [ ] Task: Add test case to verify `HALTED` is a terminal state.
   - [ ] Task: Delete `.agents/swe_agent/tests/test_finalization.sh`.
+
