@@ -10,6 +10,9 @@ if [ "$debug_attempt_counter" -lt 3 ]; then
   exit 1
 fi
 
+write_state "status" "REPLANNING"
+echo "Entering REPLANNING state."
+
 PATH=.:$PATH git reset --hard HEAD
 
 

@@ -60,7 +60,7 @@ write_state() {
 mark_current_step_done() {
   task_index=$(jq 'map(.status == "TODO") | index(true)' <<< "$(jq -c '[.tasks[]]' ACTIVE_PR.json)")
   step_index=$(jq --argjson i "$task_index" '.[$i].tdd_steps | map(.status == "TODO") | index(true)' <<< "$(jq -c '.tasks' ACTIVE_PR.json)")
-    
+
   jq --argjson ti "$task_index" --argjson si "$step_index" '.tasks[$ti].tdd_steps[$si].status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
 }
 

@@ -9,9 +9,9 @@ if [ -z "$debug_attempt_counter" ]; then
     debug_attempt_counter=0
 fi
 if [ "$debug_attempt_counter" -lt 3 ]; then
-    echo "Tool is locked. You must make at least 3 debugging attempts before escalating for external help."
+    echo "This tool is locked."
     exit 1
 fi
 
-echo "$1"
-exit 10
+echo "Escalating for external help. Please provide a new ACTIVE_PR.json file."
+exit 0

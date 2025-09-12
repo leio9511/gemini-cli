@@ -367,9 +367,10 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+
     await expect(
       simulateAgentTurn('escalate_for_external_help', [], testDir),
-    ).rejects.toThrow('This tool is locked.');
+    ).rejects.toThrow('This tool is locked');
   });
 
   it('should transition to REPLANNING after enough failed debug attempts', async () => {
@@ -404,9 +405,13 @@ describe('SWE Agent Orchestration', () => {
       path.join(testDir, 'ORCHESTRATION_STATE.json'),
       JSON.stringify({ status: 'REPLANNING' }),
     );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ tasks: [] }),
+    );
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-    expect(stdout).toContain('Please provide an updated ACTIVE_PR.json');
+    expect(stdout).toContain('Please provide an updated ACTIVE_PR.json file.');
   });
 
   it('should transition from REPLANNING to EXECUTING_TDD after submitting a new plan', async () => {
@@ -442,7 +447,9 @@ describe('SWE Agent Orchestration', () => {
       [],
       testDir,
     );
-    expect(stdout).toContain('Escalating for external help.');
+    expect(stdout).toContain(
+      'Escalating for external help. Please provide a new ACTIVE_PR.json file.',
+    );
   });
 
   it('should transition to CODE_REVIEW when all tasks are done', async () => {
@@ -530,7 +537,7 @@ describe('SWE Agent Orchestration', () => {
       [`'${JSON.stringify({ findings })}'`],
       testDir,
     );
-
+    
     // Verify output
     expect(stdout).toContain('New tasks have been added');
 
@@ -840,5 +847,46 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('DEBUGGING');
+  });
+
+  it('should transition from AWAITING_FINALIZATION to FINALIZE_COMPLETE', async () => {
+    // Setup: Initialize a git repository
+    await execAsync('git init', { cwd: testDir });
+    await execAsync('git config user.email "test@example.com"', {
+      cwd: testDir,
+    });
+    await execAsync('git config user.name "Test User"', { cwd: testDir });
+    await execAsync('git commit --allow-empty -m "Initial commit"', {
+      cwd: testDir,
+    });
+    await execAsync('git commit --allow-empty -m "feat: A"', { cwd: testDir });
+    await execAsync('git commit --allow-empty -m "feat: B"', { cwd: testDir });
+    await execAsync('git reset --soft HEAD~2', { cwd: testDir });
+    await fs.writeFile(path.join(testDir, 'test.txt'), 'test');
+    await execAsync('git add test.txt', { cwd: testDir });
+    await execAsync('git commit -m "feat: Squashed"', { cwd: testDir });
+    const { stdout: commitHash } = await execAsync('git rev-parse HEAD', {
+      cwd: testDir,
+    });
+
+    // Setup: Set state to AWAITING_FINALIZATION
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'AWAITING_FINALIZATION' }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({ prTitle: 'test pr' }),
+    );
+
+    const { stdout } = await simulateAgentTurn('submit_work', [commitHash.trim()], testDir);
+
+    expect(stdout).toContain('VERIFIED');
+
+    const state = JSON.parse(
+      await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'),
+    );
+    expect(state.status).toBe('FINALIZE_COMPLETE');
+    expect(state.last_commit_hash).toBe(commitHash.trim());
   });
 });

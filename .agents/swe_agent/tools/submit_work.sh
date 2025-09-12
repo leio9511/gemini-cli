@@ -26,12 +26,18 @@ handle_initializing_state() {
   echo "Please create a new branch named feature/$branch_name"
 }
 
+
 handle_code_review_state() {
   findings_file=$1
-  if [ -f "$findings_file" ]; then
+  findings=$(cat "$findings_file")
+  if [ "$(echo "$findings" | jq '.findings | length')" -gt 0 ]; then
     # Create new tasks from findings
-    jq -s '.[0] * {tasks: .[0].tasks + .[1]}' ACTIVE_PR.json "$findings_file" > tmp.json && mv tmp.json ACTIVE_PR.json
+    jq -s '.[0] * {tasks: .[0].tasks + .[1].findings}' ACTIVE_PR.json "$findings_file" > tmp.json && mv tmp.json ACTIVE_PR.json
     write_state "status" "EXECUTING_TDD"
+    echo "New tasks have been added based on code review findings."
+  else
+    write_state "status" "AWAITING_FINALIZATION"
+    echo "Code review approved. Please squash your commits."
   fi
 }
 
@@ -39,9 +45,10 @@ handle_code_review_state() {
 handle_awaiting_finalization_state() {
     commit_hash=$1
     # A squashed commit should have exactly one parent.
-    parent_count=$(git rev-list --max-parents=1 "$commit_hash" | wc -l)
+    parent_count=$(git log --pretty=%P -n 1 "$commit_hash" | wc -w)
     if [ "$parent_count" == "1" ]; then
         write_state "last_commit_hash" "$commit_hash"
+        write_state "status" "FINALIZE_COMPLETE"
         echo "VERIFIED"
     fi
 }
@@ -66,6 +73,11 @@ handle_awaiting_analysis_state() {
   fi
 }
 
+handle_debugging_state() {
+    write_state "status" "EXECUTING_TDD"
+    bash "$SCRIPT_DIR/get_task.sh"
+}
+
 status=$(read_state "status")
 
 case "$status" in
@@ -80,7 +92,7 @@ case "$status" in
     handle_code_review_state "$1"
     ;;
   "AWAITING_FINALIZATION")
-    handle_awaiting_finalization_state "$2"
+    handle_awaiting_finalization_state "$1"
     exit 0
     ;;
   "FINALIZE_COMPLETE")
@@ -104,6 +116,13 @@ case "$status" in
     fi
     set -e
     exit 0
+    ;;
+  "DEBUGGING")
+    handle_debugging_state
+    ;;
+  "REPLANNING")
+    write_state "status" "EXECUTING_TDD"
+    bash "$SCRIPT_DIR/get_task.sh"
     ;;
 esac
 

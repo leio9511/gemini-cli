@@ -115,7 +115,7 @@ if [ "$status" == "CODE_REVIEW" ] && [ -f "FINDINGS.json" ] && [ "$(jq 'length' 
     write_state "status" "AWAITING_FINALIZATION"
     release_lock
     trap - EXIT INT TERM
-    echo "All tasks are complete. Squash all commits into a single commit using the PR title from ACTIVE_PR.json as the message."
+    echo "All tasks are complete. Squash your commits into a single commit using the PR title from ACTIVE_PR.json as the message."
     exit 0
 fi
 
@@ -127,6 +127,11 @@ if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_h
     trap - EXIT INT TERM
     master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
     echo "Update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash."
+    exit 0
+fi
+
+if [ "$status" == "REPLANNING" ]; then
+    echo "Please provide an updated ACTIVE_PR.json file."
     exit 0
 fi
 
