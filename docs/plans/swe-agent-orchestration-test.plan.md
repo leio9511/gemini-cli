@@ -86,7 +86,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `REPLANNING` -> `EXECUTING_TDD` when an updated `ACTIVE_PR.json` is submitted.
   - [ ] Task: Add test case for `DEBUGGING` -> Escalation when `escalate_for_external_help` is called.
 
-### Pull Request #6: Port Finalization Tests and Verify Squashed Commit
+### Pull Request #6: Port Finalization Tests and Verify Squashed Commit [DONE] 82db3810cf7e194805da505437d29ffdbe498747
 
 - **PR Title:** `test(swe-agent): Port finalization tests and verify squashed commit`
 - **Summary:** This PR ports the initial finalization logic tests from `test_finalization.sh` to the Vitest integration test, specifically covering the transition to `FINALIZE_COMPLETE` and verifying the squashed commit.
