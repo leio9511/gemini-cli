@@ -37,9 +37,10 @@ This document outlines the plan to address discrepancies found during a review o
 
 ## Phase 2: Improve Test Coverage
 
+
 **Goal:** Enhance the integration test suite to cover all specified behaviors, ensuring the implementation is fully verified against the test plan.
 
-### Pull Request #2: Add test for safety checkpoint instruction
+### Pull Request #2: Add test for safety checkpoint instruction [DONE] 837122e7
 
 - **PR Title:** `test(swe-agent): Add test for safety checkpoint instruction`
 - **Summary:** This PR adds a missing integration test to verify that the orchestrator correctly instructs the agent to create a safety checkpoint commit after a successful GREEN or REFACTOR TDD step, as specified in the design and test plan.
