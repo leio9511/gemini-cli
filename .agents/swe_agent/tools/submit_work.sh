@@ -113,7 +113,7 @@ case "$status" in
       echo "Merge conflict"
       exit 1
     fi
-    set -e
+    write_state "status" "INITIALIZING"
     exit 0
     ;;
   "DEBUGGING")

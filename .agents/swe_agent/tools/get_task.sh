@@ -29,6 +29,16 @@ if [ "$status" == "FINALIZE_COMPLETE" ]; then
     exit 0
 fi
 
+if [ "$status" == "PLAN_UPDATED" ]; then
+    acquire_lock
+    trap 'release_lock' EXIT INT TERM
+    write_state "status" "MERGING_BRANCH"
+    release_lock
+    trap - EXIT INT TERM
+    echo "Please merge the branch."
+    exit 0
+fi
+
 
 
 

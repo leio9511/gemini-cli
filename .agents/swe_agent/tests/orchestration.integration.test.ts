@@ -957,4 +957,85 @@ describe('SWE Agent Orchestration', () => {
     );
     expect(state.status).toBe('PLAN_UPDATED');
   });
+
+  it('should transition from PLAN_UPDATED to MERGING_BRANCH', async () => {
+    // Setup: Set state to PLAN_UPDATED
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'PLAN_UPDATED',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({}),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    // Verify output
+    expect(stdout).toContain('merge the branch');
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('MERGING_BRANCH');
+  });
+
+  it('should transition from MERGING_BRANCH to INITIALIZING after a successful merge', async () => {
+    // Setup: Set state to MERGING_BRANCH
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'MERGING_BRANCH',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({}),
+    );
+
+    // Simulate a successful merge
+    await simulateAgentTurn('submit_work', ['"echo success"'], testDir);
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('INITIALIZING');
+  });
+
+  it('should transition from MERGING_BRANCH to HALTED on merge conflict', async () => {
+    // Setup: Set state to MERGING_BRANCH
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'MERGING_BRANCH',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({}),
+    );
+
+    // Simulate a merge conflict
+    await expect(
+      simulateAgentTurn('submit_work', ['"exit 1"'], testDir),
+    ).rejects.toThrow();
+
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('HALTED');
+  });
 });
