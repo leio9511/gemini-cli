@@ -96,8 +96,7 @@ case "$status" in
     exit 0
     ;;
   "FINALIZE_COMPLETE")
-    rm -f ACTIVE_PR.json
-    write_state "status" "INITIALIZING"
+    write_state "status" "PLAN_UPDATED"
     exit 0
     ;;
   "AWAITING_ANALYSIS")
@@ -123,6 +122,11 @@ case "$status" in
   "REPLANNING")
     write_state "status" "EXECUTING_TDD"
     bash "$SCRIPT_DIR/get_task.sh"
+    ;;
+  "PLAN_UPDATED")
+    rm -f ACTIVE_PR.json
+    write_state "status" "INITIALIZING"
+    exit 0
     ;;
 esac
 
@@ -163,6 +167,3 @@ else
     mark_current_step_done
   fi
 fi
-
-
-

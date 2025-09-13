@@ -66,7 +66,6 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `CODE_REVIEW` (Has Findings) -> `EXECUTING_TDD`.
   - [ ] Task: Add test case for `EXECUTING_TDD` (Fix Submitted) -> `CODE_REVIEW`.
 
-
 ## Phase 3: Debugging, Finalization, and Cleanup
 
 ### Pull Request #5: Add Tests for Debugging and Recovery Cycle [DONE] c15f61f0
@@ -126,4 +125,3 @@ This plan details the process of replacing the existing brittle shell-script-bas
 - **Planned Implementation Tasks:**
   - [ ] Task: Add test case to verify `HALTED` is a terminal state.
   - [ ] Task: Delete `.agents/swe_agent/tests/test_finalization.sh`.
-

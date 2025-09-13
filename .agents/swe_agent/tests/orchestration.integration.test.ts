@@ -367,7 +367,6 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
-
     await expect(
       simulateAgentTurn('escalate_for_external_help', [], testDir),
     ).rejects.toThrow('This tool is locked');
@@ -537,7 +536,7 @@ describe('SWE Agent Orchestration', () => {
       [`'${JSON.stringify({ findings })}'`],
       testDir,
     );
-    
+
     // Verify output
     expect(stdout).toContain('New tasks have been added');
 
@@ -879,14 +878,83 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ prTitle: 'test pr' }),
     );
 
-    const { stdout } = await simulateAgentTurn('submit_work', [commitHash.trim()], testDir);
+    const { stdout } = await simulateAgentTurn(
+      'submit_work',
+      [commitHash.trim()],
+      testDir,
+    );
 
     expect(stdout).toContain('VERIFIED');
 
     const state = JSON.parse(
-      await fs.readFile(path.join(testDir, 'ORCHESTRATION_STATE.json'), 'utf-8'),
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
     );
     expect(state.status).toBe('FINALIZE_COMPLETE');
     expect(state.last_commit_hash).toBe(commitHash.trim());
+  });
+
+  it('should instruct to update the plan when in FINALIZE_COMPLETE state', async () => {
+    // Setup: Set state to FINALIZE_COMPLETE
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'FINALIZE_COMPLETE',
+        last_commit_hash: 'some_hash',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({
+        prTitle: 'test pr',
+        masterPlanPath: 'docs/plans/test.plan.md',
+      }),
+    );
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    // Verify state remains the same
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('FINALIZE_COMPLETE');
+
+    // Verify output
+    expect(stdout).toMatch(/update the master plan/i);
+  });
+
+  it('should transition from FINALIZE_COMPLETE to PLAN_UPDATED', async () => {
+    // Setup: Set state to FINALIZE_COMPLETE
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'FINALIZE_COMPLETE',
+        last_commit_hash: 'some_hash',
+      }),
+    );
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({
+        prTitle: 'test pr',
+        masterPlanPath: 'docs/plans/test.plan.md',
+      }),
+    );
+
+    // Simulate submitting the updated plan
+    await simulateAgentTurn('submit_work', ['"Updated plan content"'], testDir);
+
+    // Verify state
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8',
+      ),
+    );
+    expect(state.status).toBe('PLAN_UPDATED');
   });
 });

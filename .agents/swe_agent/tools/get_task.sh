@@ -20,6 +20,17 @@ if [ -f "ORCHESTRATION_STATE.json" ] && [ ! -f "ACTIVE_PR.json" ]; then
   fi
 fi
 
+status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
+
+if [ "$status" == "FINALIZE_COMPLETE" ]; then
+    master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
+    last_commit_hash=$(read_state "last_commit_hash")
+    echo "Update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash: ${last_commit_hash}."
+    exit 0
+fi
+
+
+
 
 
 
@@ -71,9 +82,9 @@ if [ -f "ACTIVE_PR.json" ]; then
 fi
 
 
-# If in a debugging state, provide the error log and strategic guidance.
-status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
 
+
+# If in a debugging state, provide the error log and strategic guidance.
 if [ "$status" == "HALTED" ]; then
   echo "Halting operation."
   exit 1
