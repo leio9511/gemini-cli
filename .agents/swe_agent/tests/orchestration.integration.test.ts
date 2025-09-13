@@ -1038,4 +1038,24 @@ describe('SWE Agent Orchestration', () => {
     );
     expect(state.status).toBe('HALTED');
   });
+
+  it('should be a terminal state', async () => {
+    // Setup: Set state to HALTED
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'HALTED' }),
+    );
+
+    // Try to trigger a state change
+    await expect(simulateAgentTurn('get_task', [], testDir)).rejects.toThrow();
+
+    // Verify state remains HALTED
+    const state = JSON.parse(
+      await fs.readFile(
+        path.join(testDir, 'ORCHESTRATION_STATE.json'),
+        'utf-8'
+      )
+    );
+    expect(state.status).toBe('HALTED');
+  });
 });
