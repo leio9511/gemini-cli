@@ -104,7 +104,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Port test case from `test_finalization.sh` for `FINALIZE_COMPLETE` -> Get "Update Plan" Instruction.
   - [ ] Task: Add test case for `FINALIZE_COMPLETE` -> `PLAN_UPDATED`.
 
-### Pull Request #8: Add Tests for Branch Merging Workflow
+### Pull Request #8: Add Tests for Branch Merging Workflow [DONE] d0057e4a
 
 - **PR Title:** `test(swe-agent): Add test coverage for branch merging workflow`
 - **Summary:** This PR adds test coverage for the automated git merge workflow, handling both successful merges and merge conflicts.
