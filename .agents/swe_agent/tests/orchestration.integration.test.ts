@@ -12,6 +12,14 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+vi.mock('child_process', async () => {
+  const actual = await vi.importActual('child_process');
+  return {
+    ...actual,
+    exec: vi.fn(),
+  };
+});
+
 const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
@@ -73,7 +81,7 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('INITIALIZING');
   });
 
-  it('should transition from INITIALIZING to CREATING_BRANCH', async () => {
+  it('should transition from INITIALIZING to EXECUTING_TDD and create a branch', async () => {
     // Setup: Start in INITIALIZING state
     await fs.writeFile(
       path.join(testDir, 'ORCHESTRATION_STATE.json'),
@@ -81,13 +89,26 @@ describe('SWE Agent Orchestration', () => {
     );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ prTitle: 'test pr' }),
+      JSON.stringify({
+        prTitle: 'test pr',
+        tasks: [
+          {
+            name: 'task 1',
+            status: 'TODO',
+            tdd_steps: [
+              { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            ],
+          },
+        ],
+      }),
     );
 
-    const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
+    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
+      if (callback) callback(null, { stdout: '', stderr: '' });
+      return {} as unknown;
+    });
 
-    // Verify output
-    expect(stdout).toContain('create a new branch');
+    await simulateAgentTurn('submit_work', [], testDir);
 
     // Verify state
     const state = JSON.parse(
@@ -96,7 +117,12 @@ describe('SWE Agent Orchestration', () => {
         'utf-8',
       ),
     );
-    expect(state.status).toBe('CREATING_BRANCH');
+    expect(state.status).toBe('EXECUTING_TDD');
+
+    // Verify git command was called
+    expect(vi.mocked(exec).mock.calls[0][0]).toContain(
+      'git checkout main && git pull && git checkout -b "feature/test-pr"',
+    );
   });
 
   it('should transition to HALTED when ACTIVE_PR.json is malformed', async () => {
@@ -121,43 +147,6 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('HALTED');
-  });
-
-  it('should transition from CREATING_BRANCH to EXECUTING_TDD', async () => {
-    // Setup: Start in CREATING_BRANCH state
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'CREATING_BRANCH' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({
-        prTitle: 'test pr',
-        tasks: [
-          {
-            name: 'task 1',
-            status: 'TODO',
-            tdd_steps: [
-              { type: 'RED', description: 'Make test fail', status: 'TODO' },
-            ],
-          },
-        ],
-      }),
-    );
-
-    const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
-
-    // Verify output
-    expect(stdout).toContain('Your goal is to complete the next TDD step');
-
-    // Verify state
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('EXECUTING_TDD');
   });
 
   it('should clean up stale sessions', async () => {
@@ -958,49 +947,28 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('PLAN_UPDATED');
   });
 
-  it('should transition from PLAN_UPDATED to MERGING_BRANCH', async () => {
+  it('should transition from PLAN_UPDATED to INITIALIZING and merge the branch', async () => {
     // Setup: Set state to PLAN_UPDATED
     await fs.writeFile(
       path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({
-        status: 'PLAN_UPDATED',
-      }),
+      JSON.stringify({ status: 'PLAN_UPDATED' }),
     );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({}),
+      JSON.stringify({ prTitle: 'test-pr' }),
     );
+
+    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
+      if (callback) callback(null, { stdout: '', stderr: '' });
+      return {} as unknown;
+    });
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
 
-    // Verify output
-    expect(stdout).toContain('merge the branch');
-
-    // Verify state
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
+    expect(stdout).toContain('Branch merged and deleted');
+    expect(vi.mocked(exec).mock.calls[0][0]).toContain(
+      'git checkout main && git pull && git merge --no-ff "feature/test-pr" && git branch -d "feature/test-pr"',
     );
-    expect(state.status).toBe('MERGING_BRANCH');
-  });
-
-  it('should transition from MERGING_BRANCH to INITIALIZING after a successful merge', async () => {
-    // Setup: Set state to MERGING_BRANCH
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({
-        status: 'MERGING_BRANCH',
-      }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({}),
-    );
-
-    // Simulate a successful merge
-    await simulateAgentTurn('submit_work', ['"echo success"'], testDir);
 
     // Verify state
     const state = JSON.parse(
@@ -1012,23 +980,24 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('INITIALIZING');
   });
 
-  it('should transition from MERGING_BRANCH to HALTED on merge conflict', async () => {
-    // Setup: Set state to MERGING_BRANCH
+  it('should transition from PLAN_UPDATED to HALTED on merge conflict', async () => {
+    // Setup: Set state to PLAN_UPDATED
     await fs.writeFile(
       path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({
-        status: 'MERGING_BRANCH',
-      }),
+      JSON.stringify({ status: 'PLAN_UPDATED' }),
     );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({}),
+      JSON.stringify({ prTitle: 'test-pr' }),
     );
 
-    // Simulate a merge conflict
-    await expect(
-      simulateAgentTurn('submit_work', ['"exit 1"'], testDir),
-    ).rejects.toThrow();
+    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
+      if (callback)
+        callback(new Error('Merge conflict'), { stdout: '', stderr: '' });
+      return {} as unknown;
+    });
+
+    await simulateAgentTurn('get_task', [], testDir);
 
     const state = JSON.parse(
       await fs.readFile(
@@ -1053,8 +1022,8 @@ describe('SWE Agent Orchestration', () => {
     const state = JSON.parse(
       await fs.readFile(
         path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8'
-      )
+        'utf-8',
+      ),
     );
     expect(state.status).toBe('HALTED');
   });

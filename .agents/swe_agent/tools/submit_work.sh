@@ -21,9 +21,11 @@ handle_initializing_state() {
     echo "Malformed ACTIVE_PR.json"
     exit 1
   fi
-  branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
-  write_state "status" "CREATING_BRANCH"
-  echo "Please create a new branch named feature/$branch_name"
+ branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
+ git checkout main && git pull && git checkout -b "feature/$branch_name"
+
+ write_state "status" "EXECUTING_TDD"
+  bash "$SCRIPT_DIR/get_task.sh"
 }
 
 
@@ -83,10 +85,6 @@ status=$(read_state "status")
 case "$status" in
   "INITIALIZING")
     handle_initializing_state
-    ;;
-  "CREATING_BRANCH")
-    write_state "status" "EXECUTING_TDD"
-    bash "$SCRIPT_DIR/get_task.sh"
     ;;
   "CODE_REVIEW")
     handle_code_review_state "$1"

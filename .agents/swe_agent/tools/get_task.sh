@@ -32,12 +32,21 @@ fi
 if [ "$status" == "PLAN_UPDATED" ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
-    write_state "status" "MERGING_BRANCH"
+    branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
+    git checkout main && git pull && git merge --no-ff "feature/$branch_name" && git branch -d "feature/$branch_name"
+    if [ $? -ne 0 ]; then
+      write_state "status" "HALTED"
+      echo "Merge conflict"
+      exit 1
+    fi
+    rm ACTIVE_PR.json
+    write_state "status" "INITIALIZING"
     release_lock
     trap - EXIT INT TERM
-    echo "Please merge the branch."
+    echo "Branch merged and deleted. Ready for next PR."
     exit 0
 fi
+
 
 
 
