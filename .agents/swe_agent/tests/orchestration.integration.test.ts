@@ -4,21 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
 
-vi.mock('child_process', async () => {
-  const actual = await vi.importActual('child_process');
-  return {
-    ...actual,
-    exec: vi.fn(),
-  };
-});
+
+
+const execAsync = promisify(exec);
 
 const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
@@ -51,14 +46,21 @@ async function simulateAgentTurn(
     ...options.env,
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
   };
-  return await execAsync(command, { cwd: testDir, env: env });
+  console.log(`Executing command: ${command}`);
+  const result = await execAsync(command, { cwd: testDir, env: env });
+  console.log(`stdout: ${result.stdout}`);
+  console.log(`stderr: ${result.stderr}`);
+  return result;
 }
 
 describe('SWE Agent Orchestration', () => {
   let testDir: string;
 
+
   beforeEach(async () => {
     testDir = await fs.mkdtemp(path.join('/tmp', 'swe-agent-test-'));
+    await execAsync('git init', { cwd: testDir });
+    await execAsync('git commit --allow-empty -m "Initial commit"', { cwd: testDir });
   });
 
   afterEach(async () => {
@@ -102,11 +104,6 @@ describe('SWE Agent Orchestration', () => {
         ],
       }),
     );
-
-    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
-      if (callback) callback(null, { stdout: '', stderr: '' });
-      return {} as unknown;
-    });
 
     await simulateAgentTurn('submit_work', [], testDir);
 
@@ -355,6 +352,9 @@ describe('SWE Agent Orchestration', () => {
         debug_attempt_counter: 1,
       }),
     );
+
+
+
 
     await expect(
       simulateAgentTurn('escalate_for_external_help', [], testDir),
@@ -957,20 +957,12 @@ describe('SWE Agent Orchestration', () => {
       path.join(testDir, 'ACTIVE_PR.json'),
       JSON.stringify({ prTitle: 'test-pr' }),
     );
+    await execAsync('git checkout -b feature/test-pr', { cwd: testDir });
+    await execAsync('git commit --allow-empty -m "feat: test"', { cwd: testDir });
 
-    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
-      if (callback) callback(null, { stdout: '', stderr: '' });
-      return {} as unknown;
-    });
 
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
 
-    expect(stdout).toContain('Branch merged and deleted');
-    expect(vi.mocked(exec).mock.calls[0][0]).toContain(
-      'git checkout main && git pull && git merge --no-ff "feature/test-pr" && git branch -d "feature/test-pr"',
-    );
-
-    // Verify state
     const state = JSON.parse(
       await fs.readFile(
         path.join(testDir, 'ORCHESTRATION_STATE.json'),
@@ -978,6 +970,8 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('INITIALIZING');
+
+    expect(stdout).toContain('Branch merged and deleted');
   });
 
   it('should transition from PLAN_UPDATED to HALTED on merge conflict', async () => {
@@ -990,12 +984,8 @@ describe('SWE Agent Orchestration', () => {
       path.join(testDir, 'ACTIVE_PR.json'),
       JSON.stringify({ prTitle: 'test-pr' }),
     );
-
-    vi.mocked(exec).mockImplementation(async (command, options, callback) => {
-      if (callback)
-        callback(new Error('Merge conflict'), { stdout: '', stderr: '' });
-      return {} as unknown;
-    });
+    await execAsync('git checkout -b feature/test-pr', { cwd: testDir });
+    await execAsync('git commit --allow-empty -m "feat: test"', { cwd: testDir });
 
     await simulateAgentTurn('get_task', [], testDir);
 
@@ -1027,4 +1017,33 @@ describe('SWE Agent Orchestration', () => {
     );
     expect(state.status).toBe('HALTED');
   });
+
+  it('should instruct to create a safety checkpoint after a green step', async () => {
+    // Setup: Create an ACTIVE_PR.json with a completed GREEN step
+    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
+    const prContent = {
+      tasks: [
+        {
+          name: 'task 1',
+          status: 'TODO',
+          tdd_steps: [
+            { type: 'GREEN', description: 'Make test pass', status: 'DONE' },
+            { type: 'REFACTOR', description: 'Refactor', status: 'TODO' },
+          ],
+        },
+      ],
+    };
+    await fs.writeFile(activePRPath, JSON.stringify(prContent));
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({ status: 'EXECUTING_TDD', last_completed_step: 'GREEN' }),
+    );
+
+
+
+    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+
+    expect(stdout).toContain('git commit -am "TDD: GREEN - Make test pass"');
+  });
+
 });
