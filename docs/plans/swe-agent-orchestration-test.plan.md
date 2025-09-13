@@ -94,7 +94,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
 - **Planned Implementation Tasks:**
   - [ ] Task: Port test case from `test_finalization.sh` for `AWAITING_FINALIZATION` -> `FINALIZE_COMPLETE` (verifies squashed commit).
 
-### Pull Request #7: Add Tests for Plan Update Workflow
+### Pull Request #7: Add Tests for Plan Update Workflow [DONE] 58caf4ec
 
 - **PR Title:** `test(swe-agent): Add test coverage for plan update workflow`
 - **Summary:** This PR adds test coverage for the state transitions related to updating the plan after finalization is complete.
