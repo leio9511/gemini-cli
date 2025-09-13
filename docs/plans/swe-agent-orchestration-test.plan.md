@@ -115,7 +115,7 @@ This plan details the process of replacing the existing brittle shell-script-bas
   - [ ] Task: Add test case for `MERGING_BRANCH` -> `INITIALIZING` after a successful merge.
   - [ ] Task: Add test case for `MERGING_BRANCH` -> `HALTED` on merge conflict.
 
-### Pull Request #9: Verify Terminal State and Cleanup
+### Pull Request #9: Verify Terminal State and Cleanup [DONE] 1c1f6f50
 
 - **PR Title:** `test(swe-agent): Verify terminal state and remove old tests`
 - **Summary:** This PR adds a test to ensure `HALTED` is a terminal state and removes the now-redundant shell script tests.
