@@ -11,7 +11,7 @@ This document outlines the plan to address discrepancies found during a review o
 
 **Goal:** Refactor the orchestration tools to handle deterministic Git operations directly, removing this responsibility from the agent and adhering to the core design principle of separating deterministic actions from agent-based reasoning.
 
-### Pull Request #1: Automate Git operations in orchestrator
+### Pull Request #1: Automate Git operations in orchestrator [DONE] fb89ba8f
 
 - **PR Title:** `refactor(swe-agent): Automate Git operations in orchestrator`
 - **Summary:** This PR refactors the SWE agent's orchestration tools to handle Git branch creation and merging directly. This aligns the implementation with the design document, making the workflow more reliable by ensuring deterministic tasks are not handled by the LLM agent.
