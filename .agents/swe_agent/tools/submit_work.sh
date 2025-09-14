@@ -86,6 +86,13 @@ handle_debugging_state() {
     bash "$SCRIPT_DIR/get_task.sh"
 }
 
+_check_and_mark_task_done() {
+  task_index=$(jq 'map(.status == "TODO") | index(true)' <<< "$(jq -c '[.tasks[]]' ACTIVE_PR.json)")
+  if ! jq -e --argjson i "$task_index" '.[$i].tdd_steps[] | select(.status=="TODO")' <<< "$(jq -c '.tasks' ACTIVE_PR.json)" > /dev/null; then
+    mark_current_task_done
+  fi
+}
+
 status=$(read_state "status")
 
 case "$status" in
@@ -155,6 +162,7 @@ elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
   # This was a RED step, and the test failed as expected.
   # The goal of a RED step is to see a failing test, so this step is now DONE.
   mark_current_step_done
+  _check_and_mark_task_done
 else
   # Run preflight checks for tasks that are expected to pass to ensure code quality.
   if [ "$expectation" == "PASS" ]; then
@@ -169,5 +177,6 @@ else
       fi
     fi
     mark_current_step_done
+    _check_and_mark_task_done
   fi
 fi
