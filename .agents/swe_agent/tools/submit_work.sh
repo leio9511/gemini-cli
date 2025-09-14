@@ -163,6 +163,7 @@ elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
   # The goal of a RED step is to see a failing test, so this step is now DONE.
   mark_current_step_done
   _check_and_mark_task_done
+  write_state "last_completed_step" "RED"
 else
   # Run preflight checks for tasks that are expected to pass to ensure code quality.
   if [ "$expectation" == "PASS" ]; then
@@ -178,5 +179,6 @@ else
     fi
     mark_current_step_done
     _check_and_mark_task_done
+    write_state "last_completed_step" "GREEN"
   fi
 fi

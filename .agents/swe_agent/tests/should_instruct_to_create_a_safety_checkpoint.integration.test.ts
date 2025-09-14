@@ -10,9 +10,10 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
+
 const execAsync = promisify(exec);
 
-const BASE_DIR = path.resolve(__dirname, '..', '..');
+const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
@@ -84,8 +85,9 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD', last_completed_step: 'GREEN' }),
     );
 
+
     const { stdout } = await simulateAgentTurn('get_task', [], testDir);
 
-    expect(stdout).toContain('git commit -am "TDD: GREEN - Make test pass"');
+    expect(stdout).toContain('create a safety checkpoint commit');
   });
 });
