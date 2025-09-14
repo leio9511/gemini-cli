@@ -122,8 +122,8 @@ fi
 if [ "$status" == "DEBUGGING" ]; then
   debug_attempt_counter=$(read_state "debug_attempt_counter")
   error_log=$(cat error.log)
-  HYPOTHESIZE_MAX_ATTEMPTS=2
-  INSTRUMENTATION_MAX_ATTEMPTS=5
+  HYPOTHESIZE_MAX_ATTEMPTS=$(read_config_value "hypothesize_max_attempts")
+  INSTRUMENTATION_MAX_ATTEMPTS=$(read_config_value "instrumentation_max_attempts")
 
   echo "A test failed unexpectedly. You are now in a debugging state."
   echo "Last error:"

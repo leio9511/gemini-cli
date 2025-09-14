@@ -1,0 +1,6 @@
+{
+  "hypothesize_max_attempts": 2,
+  "instrumentation_max_attempts": 5,
+  "unlock_scope_reduction_at": 3,
+  "unlock_escalation_at": 6
+}

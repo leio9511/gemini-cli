@@ -8,8 +8,9 @@ debug_attempt_counter=$(read_state "debug_attempt_counter")
 if [ -z "$debug_attempt_counter" ]; then
     debug_attempt_counter=0
 fi
-if [ "$debug_attempt_counter" -lt 10 ]; then
-    echo "This tool is locked." >&2
+unlock_escalation_at=$(read_config_value "unlock_escalation_at")
+if [ "$debug_attempt_counter" -lt "$unlock_escalation_at" ]; then
+    echo "Error: This tool is locked. You must make at least $unlock_escalation_at debugging attempts before escalating. You have currently made $debug_attempt_counter attempt(s)." >&2
     exit 1
 fi
 

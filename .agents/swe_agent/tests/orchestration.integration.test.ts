@@ -299,6 +299,14 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+    await fs.writeFile(
+      path.join(testDir, 'swe_agent_config.json'),
+      JSON.stringify({
+        unlock_scope_reduction_at: 2,
+        unlock_escalation_at: 2,
+      }),
+    );
+
     await expect(
       simulateAgentTurn('request_scope_reduction', [], testDir),
     ).rejects.toThrow('This tool is locked.');
@@ -311,6 +319,14 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({
         status: 'DEBUGGING',
         debug_attempt_counter: 10, // High enough to unlock the tool
+      }),
+    );
+
+    await fs.writeFile(
+      path.join(testDir, 'swe_agent_config.json'),
+      JSON.stringify({
+        unlock_scope_reduction_at: 10,
+        unlock_escalation_at: 10,
       }),
     );
 
@@ -358,6 +374,14 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+    await fs.writeFile(
+      path.join(testDir, 'swe_agent_config.json'),
+      JSON.stringify({
+        unlock_scope_reduction_at: 10,
+        unlock_escalation_at: 10,
+      }),
+    );
+
     try {
       await simulateAgentTurn(
         'escalate_for_external_help',
@@ -377,6 +401,15 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({
         status: 'DEBUGGING',
         debug_attempt_counter: 10,
+      }),
+    );
+
+    await fs.writeFile(
+      path.join(testDir, 'swe_agent_config.json'),
+      JSON.stringify({
+        hypothesize_max_attempts: 2,
+        instrumentation_max_attempts: 5,
+        unlock_escalation_at: 6,
       }),
     );
 
