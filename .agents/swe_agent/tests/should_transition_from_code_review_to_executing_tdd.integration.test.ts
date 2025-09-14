@@ -10,6 +10,10 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
+vi.mock('axios', () => ({
+  default: vi.fn(),
+}));
+
 
 const execAsync = promisify(exec);
 
@@ -65,34 +69,35 @@ describe('SWE Agent Orchestration', () => {
   });
 
   it('should transition from CODE_REVIEW to EXECUTING_TDD when there are findings', async () => {
-    // Setup: Set state to CODE_REVIEW
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'CODE_REVIEW' }),
-    );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ tasks: [] }),
+      JSON.stringify({
+        tasks: [{ status: 'DONE' }, { status: 'DONE' }],
+      }),
     );
 
-    // Simulate a code review with findings
-    const findings = [
-      {
-        file_path: 'src/index.js',
-        description: 'Fix this',
-        recommendation: 'Do that',
-      },
-    ];
-    const findingsPath = path.join(testDir, 'findings.json');
-    await fs.writeFile(findingsPath, JSON.stringify({ findings }));
+    // Create a mock request_code_review.sh
+    const requestCodeReviewPath = path.join(TOOLS_DIR, 'request_code_review.sh');
+    const mockFindings = JSON.stringify([
+      { taskName: 'New Task 1', status: 'TODO' },
+      { taskName: 'New Task 2', status: 'TODO' },
+    ]);
+    await fs.writeFile(
+      requestCodeReviewPath,
+      `#!/bin/bash\necho '${mockFindings}'`,
+      { mode: 0o755 },
+    );
+
     const { stdout } = await simulateAgentTurn(
-      'submit_work',
-      [findingsPath],
+      'get_task',
+      [],
       testDir,
     );
 
     // Verify output
-    expect(stdout).toContain('New tasks have been added');
+    expect(stdout).toContain(
+      'Code review found issues. New tasks have been added to ACTIVE_PR.json. Please continue with the TDD process.',
+    );
 
     // Verify state
     const state = JSON.parse(
@@ -102,5 +107,15 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('EXECUTING_TDD');
+
+    // Verify that ACTIVE_PR.json is updated with new tasks
+    const activePr = JSON.parse(
+      await fs.readFile(path.join(testDir, 'ACTIVE_PR.json'), 'utf-8'),
+    );
+    expect(activePr.tasks).toHaveLength(4); // 2 original + 2 new
+    expect(activePr.tasks[2].taskName).toBe('New Task 1');
+    expect(activePr.tasks[3].taskName).toBe('New Task 2');
+
+    await fs.unlink(requestCodeReviewPath);
   });
 });

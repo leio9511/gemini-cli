@@ -99,16 +99,28 @@ fi
 if [ -f "ACTIVE_PR.json" ]; then
   # If all tasks are done, this is a stale session.
   if ! jq -e '.tasks[] | select(.status!="DONE")' ACTIVE_PR.json > /dev/null; then
-    acquire_lock
-    trap 'release_lock' EXIT INT TERM
-    write_state "status" "CODE_REVIEW"
-    release_lock
-    trap - EXIT INT TERM
-    rm ACTIVE_PR.json
-    echo "All tasks are complete. Requesting code review."
+    review_findings=$("$SCRIPT_DIR/request_code_review.sh")
+    if [ -n "$review_findings" ] && [ "$(echo "$review_findings" | jq 'length')" -gt 0 ]; then
+      acquire_lock
+      trap 'release_lock' EXIT INT TERM
+      jq --argjson findings "$review_findings" '.tasks += $findings' ACTIVE_PR.json > tmp.$$.json && mv tmp.$$.json ACTIVE_PR.json
+      write_state "status" "EXECUTING_TDD"
+      release_lock
+      trap - EXIT INT TERM
+      echo "Code review found issues. New tasks have been added to ACTIVE_PR.json. Please continue with the TDD process."
+    else
+      acquire_lock
+      trap 'release_lock' EXIT INT TERM
+      write_state "status" "AWAITING_FINALIZATION"
+      release_lock
+      trap - EXIT INT TERM
+      pr_title=$(jq -r '.prTitle' ACTIVE_PR.json)
+      echo "Code review approved. All tasks are complete. Squash your commits into a single commit using the PR title '$pr_title' as the message."
+    fi
     exit 0
   fi
 fi
+
 
 
 

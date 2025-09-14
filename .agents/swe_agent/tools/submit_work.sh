@@ -30,26 +30,6 @@ handle_initializing_state() {
 
 
 
-
-handle_code_review_state() {
-  findings_input=$1
-  if [ -f "$findings_input" ]; then
-    findings=$(cat "$findings_input")
-  else
-    findings=$findings_input
-  fi
-  if [ "$(echo "$findings" | jq '.findings | length')" -gt 0 ]; then
-    # Create new tasks from findings
-    echo "$findings" | jq -s '.[0] * {tasks: .[0].tasks + .[1].findings}' ACTIVE_PR.json - > tmp.json && mv tmp.json ACTIVE_PR.json
-    write_state "status" "EXECUTING_TDD"
-    echo "New tasks have been added based on code review findings."
-  else
-    write_state "status" "AWAITING_FINALIZATION"
-    echo "Code review approved. Please squash your commits."
-  fi
-}
-
-
 handle_awaiting_finalization_state() {
     commit_hash=$1
     # A squashed commit should have exactly one parent.
@@ -98,9 +78,6 @@ status=$(read_state "status")
 case "$status" in
   "INITIALIZING")
     handle_initializing_state
-    ;;
-  "CODE_REVIEW")
-    handle_code_review_state "$1"
     ;;
   "AWAITING_FINALIZATION")
     handle_awaiting_finalization_state "$1"
