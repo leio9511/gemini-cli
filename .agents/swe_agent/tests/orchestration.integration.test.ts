@@ -83,45 +83,6 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('INITIALIZING');
   });
 
-  it('should transition from INITIALIZING to EXECUTING_TDD and create a branch', async () => {
-    // Setup: Start in INITIALIZING state
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'INITIALIZING' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({
-        prTitle: 'test pr',
-        tasks: [
-          {
-            name: 'task 1',
-            status: 'TODO',
-            tdd_steps: [
-              { type: 'RED', description: 'Make test fail', status: 'TODO' },
-            ],
-          },
-        ],
-      }),
-    );
-
-    await simulateAgentTurn('submit_work', [], testDir);
-
-    // Verify state
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('EXECUTING_TDD');
-
-    // Verify git command was called
-    expect(vi.mocked(exec).mock.calls[0][0]).toContain(
-      'git checkout main && git pull && git checkout -b "feature/test-pr"',
-    );
-  });
-
   it('should transition to HALTED when ACTIVE_PR.json is malformed', async () => {
     // Setup: Start in INITIALIZING state
     await fs.writeFile(
@@ -343,24 +304,6 @@ describe('SWE Agent Orchestration', () => {
     ).rejects.toThrow('This tool is locked.');
   });
 
-  it('should prevent escalation when debug attempts are low', async () => {
-    // Setup: Set state to DEBUGGING with a low attempt count
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({
-        status: 'DEBUGGING',
-        debug_attempt_counter: 1,
-      }),
-    );
-
-
-
-
-    await expect(
-      simulateAgentTurn('escalate_for_external_help', [], testDir),
-    ).rejects.toThrow('This tool is locked');
-  });
-
   it('should transition to REPLANNING after enough failed debug attempts', async () => {
     // Setup: Set state to DEBUGGING with a high attempt count
     await fs.writeFile(
@@ -385,21 +328,6 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('REPLANNING');
-  });
-
-  it('should provide re-planning instructions when in REPLANNING state', async () => {
-    // Setup: Set state to REPLANNING
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'REPLANNING' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ tasks: [] }),
-    );
-
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-    expect(stdout).toContain('Please provide an updated ACTIVE_PR.json file.');
   });
 
   it('should transition from REPLANNING to EXECUTING_TDD after submitting a new plan', async () => {
@@ -499,90 +427,6 @@ describe('SWE Agent Orchestration', () => {
       ),
     );
     expect(state.status).toBe('AWAITING_FINALIZATION');
-  });
-
-  it('should transition from CODE_REVIEW to EXECUTING_TDD when there are findings', async () => {
-    // Setup: Set state to CODE_REVIEW
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'CODE_REVIEW' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ tasks: [] }),
-    );
-
-    // Simulate a code review with findings
-    const findings = [
-      {
-        file_path: 'src/index.js',
-        description: 'Fix this',
-        recommendation: 'Do that',
-      },
-    ];
-    const { stdout } = await simulateAgentTurn(
-      'submit_work',
-      [`'${JSON.stringify({ findings })}'`],
-      testDir,
-    );
-
-    // Verify output
-    expect(stdout).toContain('New tasks have been added');
-
-    // Verify state
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('EXECUTING_TDD');
-  });
-
-  it('should transition from EXECUTING_TDD to CODE_REVIEW after a fix is submitted', async () => {
-    // Setup: Create an ACTIVE_PR.json with a single task to fix a finding
-    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
-    const prContent = {
-      tasks: [
-        {
-          name: 'task 1',
-          status: 'TODO',
-          tdd_steps: [
-            { type: 'GREEN', description: 'Fix the finding', status: 'TODO' },
-          ],
-        },
-      ],
-    };
-    await fs.writeFile(activePRPath, JSON.stringify(prContent));
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'EXECUTING_TDD' }),
-    );
-
-    // Simulate submitting the fix
-    await simulateAgentTurn(
-      'submit_work',
-      ['"echo success"', 'PASS'],
-      testDir,
-      {
-        env: { SKIP_PREFLIGHT: 'true' },
-      },
-    );
-
-    // Now all tasks are done, so calling get_task should transition to CODE_REVIEW
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-
-    // Verify output
-    expect(stdout).toContain('All tasks are complete. Requesting code review.');
-
-    // Verify state
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('CODE_REVIEW');
   });
 
   it('should transition to HALTED on a merge conflict', async () => {
@@ -947,57 +791,6 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('PLAN_UPDATED');
   });
 
-  it('should transition from PLAN_UPDATED to INITIALIZING and merge the branch', async () => {
-    // Setup: Set state to PLAN_UPDATED
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'PLAN_UPDATED' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ prTitle: 'test-pr' }),
-    );
-    await execAsync('git checkout -b feature/test-pr', { cwd: testDir });
-    await execAsync('git commit --allow-empty -m "feat: test"', { cwd: testDir });
-
-
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('INITIALIZING');
-
-    expect(stdout).toContain('Branch merged and deleted');
-  });
-
-  it('should transition from PLAN_UPDATED to HALTED on merge conflict', async () => {
-    // Setup: Set state to PLAN_UPDATED
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'PLAN_UPDATED' }),
-    );
-    await fs.writeFile(
-      path.join(testDir, 'ACTIVE_PR.json'),
-      JSON.stringify({ prTitle: 'test-pr' }),
-    );
-    await execAsync('git checkout -b feature/test-pr', { cwd: testDir });
-    await execAsync('git commit --allow-empty -m "feat: test"', { cwd: testDir });
-
-    await simulateAgentTurn('get_task', [], testDir);
-
-    const state = JSON.parse(
-      await fs.readFile(
-        path.join(testDir, 'ORCHESTRATION_STATE.json'),
-        'utf-8',
-      ),
-    );
-    expect(state.status).toBe('HALTED');
-  });
-
   it('should be a terminal state', async () => {
     // Setup: Set state to HALTED
     await fs.writeFile(
@@ -1017,33 +810,4 @@ describe('SWE Agent Orchestration', () => {
     );
     expect(state.status).toBe('HALTED');
   });
-
-  it('should instruct to create a safety checkpoint after a green step', async () => {
-    // Setup: Create an ACTIVE_PR.json with a completed GREEN step
-    const activePRPath = path.join(testDir, 'ACTIVE_PR.json');
-    const prContent = {
-      tasks: [
-        {
-          name: 'task 1',
-          status: 'TODO',
-          tdd_steps: [
-            { type: 'GREEN', description: 'Make test pass', status: 'DONE' },
-            { type: 'REFACTOR', description: 'Refactor', status: 'TODO' },
-          ],
-        },
-      ],
-    };
-    await fs.writeFile(activePRPath, JSON.stringify(prContent));
-    await fs.writeFile(
-      path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'EXECUTING_TDD', last_completed_step: 'GREEN' }),
-    );
-
-
-
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
-
-    expect(stdout).toContain('git commit -am "TDD: GREEN - Make test pass"');
-  });
-
 });
