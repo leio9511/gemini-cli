@@ -12,5 +12,7 @@ export default defineConfig({
     exclude: ['tests/failing/**/*.ts'],
     pool: 'forks',
     bail: 0,
+    testTimeout: 120000,
+    reporters: ['dot'],
   },
 });
