@@ -37,13 +37,14 @@ if [ "$status" == "PLAN_UPDATED" ]; then
     if git remote | grep -q '.'; then
       git pull
     fi
-    git merge --no-ff "feature/$branch_name" && git branch -d "feature/$branch_name"
+    git merge --no-ff "feature/$branch_name"
     if [ $? -ne 0 ]; then
       write_state "status" "HALTED"
       echo "Merge conflict"
       exit 1
     fi
     rm ACTIVE_PR.json
+    git branch -d "feature/$branch_name"
     write_state "status" "INITIALIZING"
     release_lock
     trap - EXIT INT TERM

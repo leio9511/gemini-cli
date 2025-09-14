@@ -11,10 +11,11 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 
+
 const execAsync = promisify(exec);
 
-const AGENT_DIR = path.resolve(__dirname, '..');
-const TOOLS_DIR = path.resolve(AGENT_DIR, 'tools');
+const BASE_DIR = path.resolve(__dirname, '..');
+const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
