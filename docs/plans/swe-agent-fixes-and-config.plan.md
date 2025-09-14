@@ -34,7 +34,7 @@ After the initial PR, a series of pull requests will be created to fix each of t
 - **PR #6 Title:** `fix(swe-agent): fix failing test "should transition from EXECUTING_TDD to CODE_REVIEW after a fix is submitted"` [DONE] b77a7e93d63d83f0f5a451fea04455eed4c8cd3b
 - **PR #7 Title:** `fix(swe-agent): fix failing test "should transition from PLAN_UPDATED to INITIALIZING and merge the branch"` [DONE] aae9823011f78f92b188c4e2d14436a5f511797f
 - **PR #8 Title:** `fix(swe-agent): fix failing test "should transition from PLAN_UPDATED to HALTED on merge conflict"` [DONE] a5f488d37aacfa6dcb34fccfccad0bfc2d7ac2a9
-- **PR #9 Title:** `fix(swe-agent): fix failing test "should instruct to create a safety checkpoint after a green step"`
+- **PR #9 Title:** `fix(swe-agent): fix failing test "should instruct to create a safety checkpoint after a green step"` [DONE] e0d677da31cbe100feafdb10131a48869c1c47d6
 
 - **Summary (template):** This PR fixes the failing test `[test name]`. It moves the test file from the `tests/failing` directory back into the main `tests` directory, re-enabling it in the test suite, and implements the necessary code changes to make it pass.
 - **Verification Plan (template):**
