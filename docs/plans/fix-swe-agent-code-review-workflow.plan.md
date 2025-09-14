@@ -4,9 +4,10 @@
 
 This plan outlines the engineering steps required to fix the broken code review trigger in the SWE Agent's orchestration logic. The goal is to align the implementation with the design by making the code review process a fully automated, orchestrator-driven action within the `get_task.sh` tool.
 
+
 ## Phase 1: Refactor Orchestration Logic and Tooling
 
-### Pull Request #1: fix(swe-agent): Automate code review trigger and remove agent tool
+### Pull Request #1: fix(swe-agent): Automate code review trigger and remove agent tool [DONE] d4cfbfa4d0c8fea5c77668ee71b256ee3f7451fa
 
 -   **PR Title:** fix(swe-agent): Automate code review trigger and remove agent tool
 -   **Summary:** This PR refactors the SWE agent's orchestration logic to automatically trigger and handle the code review process within `get_task.sh` when all tasks are complete. It removes the broken and misleading `request_code_review` tool from the agent's available toolkit and cleans up the now-redundant handling logic from `submit_work.sh`. This change fixes a critical bug that prevented the agent from completing a PR autonomously and aligns the implementation with the original design.
