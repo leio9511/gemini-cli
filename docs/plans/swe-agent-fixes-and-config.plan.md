@@ -26,9 +26,10 @@ The SWE Agent's test suite is currently failing with 8 errors. To manage this, w
 
 After the initial PR, a series of pull requests will be created to fix each of the failing tests. Each PR will target one test file.
 
+
 - **PR #2 Title:** `fix(swe-agent): fix failing test "should transition from INITIALIZING to EXECUTING_TDD and create a branch"` [DONE] 2188c699db1f68acbe1de5e2ee7f073cfbc868cd
 - **PR #3 Title:** `fix(swe-agent): fix failing test "should prevent escalation when debug attempts are low"` [DONE] 60fafd66e7152f0e912c3072fb802917977e6913
-- **PR #4 Title:** `fix(swe-agent): fix failing test "should provide re-planning instructions when in REPLANNING state"`
+- **PR #4 Title:** `fix(swe-agent): fix failing test "should provide re-planning instructions when in REPLANNING state"` [DONE] 5b07fc8574031ae9d6fa80453653507ed327b3d3
 - **PR #5 Title:** `fix(swe-agent): fix failing test "should transition from CODE_REVIEW to EXECUTING_TDD when there are findings"`
 - **PR #6 Title:** `fix(swe-agent): fix failing test "should transition from EXECUTING_TDD to CODE_REVIEW after a fix is submitted"`
 - **PR #7 Title:** `fix(swe-agent): fix failing test "should transition from PLAN_UPDATED to INITIALIZING and merge the branch"`
