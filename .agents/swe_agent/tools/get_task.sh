@@ -33,7 +33,11 @@ if [ "$status" == "PLAN_UPDATED" ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
     branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
-    git checkout main && git pull && git merge --no-ff "feature/$branch_name" && git branch -d "feature/$branch_name"
+    git checkout main
+    if git remote | grep -q '.'; then
+      git pull
+    fi
+    git merge --no-ff "feature/$branch_name" && git branch -d "feature/$branch_name"
     if [ $? -ne 0 ]; then
       write_state "status" "HALTED"
       echo "Merge conflict"

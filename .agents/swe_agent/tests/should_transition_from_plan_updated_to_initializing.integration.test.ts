@@ -10,10 +10,11 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
+
 const execAsync = promisify(exec);
 
-const BASE_DIR = path.resolve(__dirname, '..', '..');
-const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
+const AGENT_DIR = path.resolve(__dirname, '..');
+const TOOLS_DIR = path.resolve(AGENT_DIR, 'tools');
 
 async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
@@ -59,7 +60,7 @@ describe('SWE Agent Orchestration', () => {
     await execAsync('git commit --allow-empty -m "Initial commit"', { cwd: testDir });
   });
 
-  afterEach(async (). => {
+  afterEach(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
