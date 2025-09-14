@@ -86,6 +86,11 @@ The \`ACTIVE_PR.json\` file should be in the following format:
 }
 EOF
 
+if [ "$status" == "REPLANNING" ]; then
+    echo "Please provide an updated ACTIVE_PR.json file."
+    exit 0
+fi
+
 if [ -f "ACTIVE_PR.json" ]; then
   # If all tasks are done, this is a stale session.
   if ! jq -e '.tasks[] | select(.status!="DONE")' ACTIVE_PR.json > /dev/null; then
@@ -157,11 +162,6 @@ if [ "$status" == "AWAITING_FINALIZATION" ] && [ -n "$(read_state "last_commit_h
     trap - EXIT INT TERM
     master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
     echo "Update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash."
-    exit 0
-fi
-
-if [ "$status" == "REPLANNING" ]; then
-    echo "Please provide an updated ACTIVE_PR.json file."
     exit 0
 fi
 
