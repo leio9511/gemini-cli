@@ -137,13 +137,9 @@ if [ "$status" == "DEBUGGING" ]; then
   elif [ "$debug_attempt_counter" -le "$INSTRUMENTATION_MAX_ATTEMPTS" ]; then
     echo "Use Instrumentation."
   else
-    echo "You have exhausted your debugging attempts. Your new task is to:"
-    echo "1.  **Analyze and Document:** Write a detailed markdown report in a code block, summarizing the problem, what you've tried, and why you believe you're stuck. This is for an external human expert to review."
-    echo "2.  **Escalate:** Use the \`escalate_for_external_help\` tool with your report. For example:"
-    echo ""
-    echo '   \`\`\`'
-    echo '   escalate_for_external_help "### Problem Summary..."'
-    echo '   \`\`\`'
+    echo "You have made numerous attempts to fix the issue without success. Your new primary goal is to escalate this problem to a human expert."
+    echo "To do this, you MUST generate a comprehensive markdown report that includes a summary of the problem, a list of the steps you have already tried, and a clear explanation of why you believe you are stuck."
+    echo "Then, you MUST call the 'escalate_for_external_help' tool with the markdown report as the only argument."
   fi
   exit 0
 fi

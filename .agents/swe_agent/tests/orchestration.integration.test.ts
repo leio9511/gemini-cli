@@ -400,7 +400,7 @@ describe('SWE Agent Orchestration', () => {
       [],
       testDir,
     );
-    expect(stdout).toContain('You have exhausted your debugging attempts.');
+    expect(stdout).toContain('You have made numerous attempts');
   });
 
   it('should transition to CODE_REVIEW when all tasks are done', async () => {

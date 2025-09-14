@@ -8,7 +8,7 @@ debug_attempt_counter=$(read_state "debug_attempt_counter")
 if [ -z "$debug_attempt_counter" ]; then
     debug_attempt_counter=0
 fi
-if [ "$debug_attempt_counter" -lt 3 ]; then
+if [ "$debug_attempt_counter" -lt 10 ]; then
     echo "This tool is locked." >&2
     exit 1
 fi
@@ -18,5 +18,7 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+
 echo "$1"
 exit 10
+
