@@ -69,9 +69,10 @@ After the initial PR, a series of pull requests will be created to fix each of t
 
 
 
+
 ## Phase 3: Make Debugging Strategy Configurable
 
-### Pull Request #11: Configure Debugging Strategy Thresholds
+### Pull Request #11: Configure Debugging Strategy Thresholds [DONE] dbca512a6c2c8981ef1f3317e8fbdf7861332aa0
 
 - **PR Title:** feat(swe-agent): make debugging strategy configurable
 - **Summary:** This PR decouples the debugging strategy from the agent's scripts by introducing a `swe_agent_config.json` file. The `get_task`, `request_scope_reduction`, and `escalate_for_external_help` scripts are updated to read their thresholds from this new configuration file.
