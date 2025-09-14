@@ -29,12 +29,18 @@ handle_initializing_state() {
 }
 
 
+
+
 handle_code_review_state() {
-  findings_file=$1
-  findings=$(cat "$findings_file")
+  findings_input=$1
+  if [ -f "$findings_input" ]; then
+    findings=$(cat "$findings_input")
+  else
+    findings=$findings_input
+  fi
   if [ "$(echo "$findings" | jq '.findings | length')" -gt 0 ]; then
     # Create new tasks from findings
-    jq -s '.[0] * {tasks: .[0].tasks + .[1].findings}' ACTIVE_PR.json "$findings_file" > tmp.json && mv tmp.json ACTIVE_PR.json
+    echo "$findings" | jq -s '.[0] * {tasks: .[0].tasks + .[1].findings}' ACTIVE_PR.json - > tmp.json && mv tmp.json ACTIVE_PR.json
     write_state "status" "EXECUTING_TDD"
     echo "New tasks have been added based on code review findings."
   else

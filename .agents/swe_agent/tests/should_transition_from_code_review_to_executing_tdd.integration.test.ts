@@ -10,9 +10,10 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
+
 const execAsync = promisify(exec);
 
-const BASE_DIR = path.resolve(__dirname, '..', '..');
+const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
@@ -82,9 +83,11 @@ describe('SWE Agent Orchestration', () => {
         recommendation: 'Do that',
       },
     ];
+    const findingsPath = path.join(testDir, 'findings.json');
+    await fs.writeFile(findingsPath, JSON.stringify({ findings }));
     const { stdout } = await simulateAgentTurn(
       'submit_work',
-      [`'${JSON.stringify({ findings })}'`],
+      [findingsPath],
       testDir,
     );
 
