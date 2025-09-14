@@ -48,9 +48,10 @@ After the initial PR, a series of pull requests will be created to fix each of t
   - [ ] Task: Run the full preflight check.
 
 
+
 ## Phase 2: Implement Escalation Tool and Prompt
 
-### Pull Request #10: Implement Escalation Tool and Instructional Prompt
+### Pull Request #10: Implement Escalation Tool and Instructional Prompt [DONE] 8c2814309d4beb0b6d302ecaa8f49c05b1735044
 
 - **PR Title:** feat(swe-agent): implement escalation tool and instructional prompt
 - **Summary:** This PR aligns the `escalate_for_external_help` tool with its design. The script is updated to accept a markdown report and exit with a specific halt code (10). The `get_task` script is also updated to provide the agent with a clear instructional prompt on *how* and *when* to use the escalation tool.
