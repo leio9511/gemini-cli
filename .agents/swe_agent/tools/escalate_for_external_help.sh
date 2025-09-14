@@ -9,7 +9,7 @@ if [ -z "$debug_attempt_counter" ]; then
     debug_attempt_counter=0
 fi
 if [ "$debug_attempt_counter" -lt 3 ]; then
-    echo "This tool is locked."
+    echo "This tool is locked." >&2
     exit 1
 fi
 
