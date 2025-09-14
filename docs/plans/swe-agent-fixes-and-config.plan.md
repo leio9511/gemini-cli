@@ -4,25 +4,21 @@
 
 This plan outlines the work to remediate failing tests, correctly implement the escalation tool, and make the SWE Agent's debugging strategy configurable.
 
+
 ## Phase 1: Remediate Failing Integration Tests
 
-### Pull Request #1: Fix SWE Agent Integration Test Suite
+### Pull Request #1: Fix SWE Agent Preflight to Green State
 
-- **PR Title:** fix(swe-agent): remediate all failing integration tests
-- **Summary:** This PR addresses the 8 failing tests in the `orchestration.integration.test.ts` suite. It introduces proper mocking for `child_process` to prevent side effects (like network calls) and updates outdated assertions to align with the current, correct behavior of the tool scripts. This will establish a stable, green baseline for future development.
+- **PR Title:** fix(swe-agent): get SWE Agent preflight to a green state
+- **Summary:** The SWE Agent's test suite is currently failing. This PR focuses on running the preflight, identifying the root causes of the failures, and implementing the necessary fixes to get all tests to pass. This will establish a stable, green baseline for future development, allowing subsequent changes to be validated against a known-good state.
 - **Verification Plan:**
   - Run the SWE Agent's preflight command from the project root: `npm run preflight -w @google/gemini-cli-swe-agent-tests`.
-  - Verify that all 36 tests pass and the command exits with a success code.
+  - Verify that the command runs successfully and all tests pass.
 - **Planned Implementation Tasks:**
-  - [ ] Task: Add `vi.mock('child_process', ...)` to the top of `orchestration.integration.test.ts`.
-  - [ ] Task: Add a `beforeEach` hook in the test suite to provide a default mock implementation for `exec`.
-  - [ ] Task: Add `vi.restoreAllMocks()` to the `afterEach` hook to ensure test isolation.
-  - [ ] Task: Update the test `should prevent escalation when debug attempts are low` to correctly assert the thrown error message.
-  - [ ] Task: Update the assertion in `should provide re-planning instructions when in REPLANNING state` to match the correct script output.
-  - [ ] Task: Update the assertion in `should transition from CODE_REVIEW to EXECUTING_TDD when there are findings` to match the correct script output.
-  - [ ] Task: Update the assertion in `should transition from EXECUTING_TDD to CODE_REVIEW after a fix is submitted` to match the correct script output.
-  - [ ] Task: Update the tests `should transition from PLAN_UPDATED to INITIALIZING and merge the branch` and `should transition from PLAN_UPDATED to HALTED on merge conflict` to correctly handle the mocked `git` commands.
-  - [ ] Task: Update the assertion in `should instruct to create a safety checkpoint after a green step` to match the correct script output.
+  - [ ] Task: Run `npm run preflight -w @google/gemini-cli-swe-agent-tests` and observe the initial failing state.
+  - [ ] Task: Analyze the test failures and determine the root cause.
+  - [ ] Task: Implement the necessary mocks, assertion updates, or other code changes to fix the failing tests.
+  - [ ] Task: Re-run the preflight command to verify that all tests now pass.
 
 ## Phase 2: Implement Escalation Tool and Prompt
 
