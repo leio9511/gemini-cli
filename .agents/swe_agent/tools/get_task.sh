@@ -137,7 +137,13 @@ if [ "$status" == "DEBUGGING" ]; then
   elif [ "$debug_attempt_counter" -le "$INSTRUMENTATION_MAX_ATTEMPTS" ]; then
     echo "Use Instrumentation."
   else
-    echo "Conclude the task is too complex. You should consider using the 'request_scope_reduction' tool."
+    echo "You have exhausted your debugging attempts. Your new task is to:"
+    echo "1.  **Analyze and Document:** Write a detailed markdown report in a code block, summarizing the problem, what you've tried, and why you believe you're stuck. This is for an external human expert to review."
+    echo "2.  **Escalate:** Use the \`escalate_for_external_help\` tool with your report. For example:"
+    echo ""
+    echo '   \`\`\`'
+    echo '   escalate_for_external_help "### Problem Summary..."'
+    echo '   \`\`\`'
   fi
   exit 0
 fi

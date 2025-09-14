@@ -19,7 +19,7 @@ const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
-  tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
+  tool: 'get_task' | 'submit_work' | 'request_scope_reduction' | 'escalate_for_external_help',
   args: string[] = [],
   testDir: string,
   options: {
@@ -358,14 +358,49 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+    try {
+      await simulateAgentTurn(
+        'escalate_for_external_help',
+        ['"my markdown report"'],
+        testDir,
+      );
+    } catch (e) {
+      expect(e.stdout).toContain('my markdown report');
+      expect(e.code).toBe(10);
+    }
+  });
+
+  it('should provide escalation instructions after enough failed debug attempts', async () => {
+    // Setup: Set state to DEBUGGING with a high attempt count
+    await fs.writeFile(
+      path.join(testDir, 'ORCHESTRATION_STATE.json'),
+      JSON.stringify({
+        status: 'DEBUGGING',
+        debug_attempt_counter: 10,
+      }),
+    );
+
+    await fs.writeFile(
+      path.join(testDir, 'ACTIVE_PR.json'),
+      JSON.stringify({
+        tasks: [
+          {
+            name: 'task 1',
+            status: 'TODO',
+            tdd_steps: [
+              { type: 'RED', description: 'Make test fail', status: 'TODO' },
+            ],
+          },
+        ],
+      }),
+    );
+
     const { stdout } = await simulateAgentTurn(
-      'escalate_for_external_help',
+      'get_task',
       [],
       testDir,
     );
-    expect(stdout).toContain(
-      'Escalating for external help. Please provide a new ACTIVE_PR.json file.',
-    );
+    expect(stdout).toContain('You have exhausted your debugging attempts.');
   });
 
   it('should transition to CODE_REVIEW when all tasks are done', async () => {

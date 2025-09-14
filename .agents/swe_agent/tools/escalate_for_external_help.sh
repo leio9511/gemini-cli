@@ -13,5 +13,10 @@ if [ "$debug_attempt_counter" -lt 3 ]; then
     exit 1
 fi
 
-echo "Escalating for external help. Please provide a new ACTIVE_PR.json file."
-exit 0
+if [ -z "$1" ]; then
+    echo "Usage: $0 <markdown_report>" >&2
+    exit 1
+fi
+
+echo "$1"
+exit 10
