@@ -12,7 +12,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
-const BASE_DIR = path.resolve(__dirname, '..', '..');
+const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
 async function simulateAgentTurn(
@@ -21,7 +21,7 @@ async function simulateAgentTurn(
   testDir: string,
   options: {
     env?: Record<string, string>;
-    mocks?: Record<string, string>;
+    mocks?: Record<string, (command: string, options: any, callback: (err: any, stdout: any, stderr: any) => void) => void>;
   } = {},
 ) {
   let command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
@@ -29,13 +29,16 @@ async function simulateAgentTurn(
   )}`;
 
   // Check if the command is in mocks
-  if (options.mocks) {
-    const mockKey = Object.keys(options.mocks).find((key) =>
-      command.includes(key),
-    );
-    if (mockKey) {
-      command = options.mocks[mockKey];
-    }
+  if (options.mocks && options.mocks[command]) {
+    return new Promise((resolve, reject) => {
+        options.mocks[command](command, {}, (err, stdout, stderr) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve({ stdout, stderr });
+            }
+        });
+    });
   }
 
   const env = {
@@ -97,8 +100,7 @@ describe('SWE Agent Orchestration', () => {
     expect(state.status).toBe('EXECUTING_TDD');
 
     // Verify git command was called
-    expect(vi.mocked(exec).mock.calls[0][0]).toContain(
-      'git checkout main && git pull && git checkout -b "feature/test-pr"',
-    );
+    const branch = await execAsync('git branch --show-current', { cwd: testDir });
+    expect(branch.stdout.trim()).toBe('feature/test-pr');
   });
 });

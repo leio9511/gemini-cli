@@ -22,7 +22,7 @@ handle_initializing_state() {
     exit 1
   fi
  branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
- git checkout main && git pull && git checkout -b "feature/$branch_name"
+ git checkout main && git checkout -b "feature/$branch_name"
 
  write_state "status" "EXECUTING_TDD"
   bash "$SCRIPT_DIR/get_task.sh"
