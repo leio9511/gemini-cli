@@ -20,7 +20,7 @@ if [ -f "ORCHESTRATION_STATE.json" ] && [ ! -f "ACTIVE_PR.json" ]; then
   fi
 fi
 
-status=$(jq -r .status ORCHESTRATION_STATE.json || echo "null")
+status=$(read_state "status")
 
 if [ "$status" == "FINALIZE_COMPLETE" ]; then
     master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
