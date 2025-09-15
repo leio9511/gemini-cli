@@ -69,7 +69,10 @@ describe('SWE Agent Orchestration', () => {
     // Setup: Set state to PLAN_UPDATED
     await fs.writeFile(
       path.join(testDir, 'ORCHESTRATION_STATE.json'),
-      JSON.stringify({ status: 'PLAN_UPDATED' }),
+      JSON.stringify({
+        status: 'PLAN_UPDATED',
+        current_pr_branch: 'feature/test-pr',
+      }),
     );
     await fs.writeFile(
       path.join(testDir, 'ACTIVE_PR.json'),

@@ -5,12 +5,12 @@ cat <<EOF
 [
   {
     "name": "get_task",
-    "description": "Gets the next task or mission briefing from the stateless orchestration logic. Call this to get your goal.",
+    "description": "Gets your next objective from the orchestrator. This is your primary way to understand what you need to do next.",
     "parameters": { "type": "OBJECT", "properties": {}, "required": [] }
   },
   {
     "name": "submit_work",
-    "description": "The single gateway for all code verification. Has two modes: (1) To run a test, provide a 'test_command' and your 'expectation'. (2) To confirm the result of an ambiguous test run, provide your 'analysis_decision'. You are FORBIDDEN from using 'run_shell_command' to execute tests.",
+    "description": "Reports the completion of an objective given by 'get_task'. This is the single gateway for all code verification. Has two modes: (1) To run a test, provide a 'test_command' and your 'expectation'. (2) To confirm the result of an ambiguous test run, provide your 'analysis_decision'. You are FORBIDDEN from using 'run_shell_command' to execute tests.",
     "parameters": {
       "type": "OBJECT",
       "properties": {

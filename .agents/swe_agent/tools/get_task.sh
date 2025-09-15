@@ -32,19 +32,19 @@ fi
 if [ "$status" == "PLAN_UPDATED" ]; then
     acquire_lock
     trap 'release_lock' EXIT INT TERM
-    branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
+    branch_name=$(read_state "current_pr_branch")
     git checkout main
     if git remote | grep -q '.'; then
       git pull
     fi
-    git merge --no-ff "feature/$branch_name"
+    git merge --no-ff "$branch_name"
     if [ $? -ne 0 ]; then
       write_state "status" "HALTED"
       echo "Merge conflict"
       exit 1
     fi
     rm ACTIVE_PR.json
-    git branch -d "feature/$branch_name"
+    git branch -d "$branch_name"
     write_state "status" "INITIALIZING"
     release_lock
     trap - EXIT INT TERM
@@ -89,6 +89,8 @@ The \`ACTIVE_PR.json\` file should be in the following format:
     },
   ],
 }
+
+After you have created the file with the content above, you MUST call the `submit_work` tool with a summary of your action. This is a required step to complete the initialization.
 EOF
 
 if [ "$status" == "REPLANNING" ]; then

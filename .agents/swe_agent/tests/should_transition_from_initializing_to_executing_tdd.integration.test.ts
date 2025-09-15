@@ -99,8 +99,9 @@ describe('SWE Agent Orchestration', () => {
     );
     expect(state.status).toBe('EXECUTING_TDD');
 
+
     // Verify git command was called
     const branch = await execAsync('git branch --show-current', { cwd: testDir });
-    expect(branch.stdout.trim()).toBe('feature/test-pr');
+    expect(branch.stdout.trim()).toContain('feature/active-branch-');
   });
 });

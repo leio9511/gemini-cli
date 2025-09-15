@@ -21,8 +21,9 @@ handle_initializing_state() {
     echo "Malformed ACTIVE_PR.json"
     exit 1
   fi
- branch_name=$(jq -r '.prTitle' ACTIVE_PR.json | sed 's/ /-/g' | tr '[:upper:]' '[:lower:]')
- git checkout main && git checkout -b "feature/$branch_name"
+ branch_name="feature/active-branch-$(date +%s)-$(head /dev/urandom | tr -dc a-z0-9 | head -c 6)"
+ git checkout main && git checkout -b "$branch_name"
+ write_state "current_pr_branch" "$branch_name"
 
  write_state "status" "EXECUTING_TDD"
   bash "$SCRIPT_DIR/get_task.sh"
