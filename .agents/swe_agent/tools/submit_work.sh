@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 if ! command -v jq &> /dev/null
 then
@@ -14,6 +15,12 @@ fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 source "$SCRIPT_DIR/../utils.sh"
+
+TOOL_ARGS=$(cat)
+test_command=$(echo "$TOOL_ARGS" | jq -r '.test_command // empty')
+expectation=$(echo "$TOOL_ARGS" | jq -r '.expectation // empty')
+analysis_decision=$(echo "$TOOL_ARGS" | jq -r '.analysis_decision // empty')
+commit_hash=$(echo "$TOOL_ARGS" | jq -r '.commit_hash // empty')
 
 handle_initializing_state() {
   if ! jq -e . ACTIVE_PR.json > /dev/null; then
@@ -81,7 +88,7 @@ case "$status" in
     handle_initializing_state
     ;;
   "AWAITING_FINALIZATION")
-    handle_awaiting_finalization_state "$1"
+    handle_awaiting_finalization_state "$commit_hash"
     exit 0
     ;;
   "FINALIZE_COMPLETE")
@@ -89,12 +96,12 @@ case "$status" in
     exit 0
     ;;
   "AWAITING_ANALYSIS")
-    handle_awaiting_analysis_state "$1"
+    handle_awaiting_analysis_state "$analysis_decision"
     exit 0
     ;;
   "MERGING_BRANCH")
     set +e
-    (eval "$1")
+    (eval "$test_command")
     exit_code=$?
     set -e
     if [ "$exit_code" -ne 0 ]; then
@@ -119,10 +126,7 @@ case "$status" in
     ;;
 esac
 
-test_command=$1
-expectation=$2
-
-if [ -z "$test_command" ]; then
+if [ -z "$test_command" ] && [ -z "$analysis_decision" ] && [ -z "$commit_hash" ]; then
   # Not a test execution, just a state transition
   exit 0
 fi

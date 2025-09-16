@@ -18,28 +18,17 @@ const execAsync = promisify(exec);
 const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
+
 async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction' | 'escalate_for_external_help',
-  args: string[] = [],
+  args: Record<string, any> = {},
   testDir: string,
   options: {
     env?: Record<string, string>;
-    mocks?: Record<string, string>;
   } = {},
 ) {
-  let command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
-    ' ',
-  )}`;
-
-  // Check if the command is in mocks
-  if (options.mocks) {
-    const mockKey = Object.keys(options.mocks).find((key) =>
-      command.includes(key),
-    );
-    if (mockKey) {
-      command = options.mocks[mockKey];
-    }
-  }
+  const command = `bash ${path.resolve(TOOLS_DIR, 'run.sh')} ${tool}`;
+  const jsonArgs = JSON.stringify(args);
 
   const env = {
     ...process.env,
@@ -47,7 +36,7 @@ async function simulateAgentTurn(
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
   };
   console.log(`Executing command: ${command}`);
-  const result = await execAsync(command, { cwd: testDir, env: env });
+  const result = await execAsync(`echo '${jsonArgs}' | ${command}`, { cwd: testDir, env: env, shell: '/bin/bash' });
   console.log(`stdout: ${result.stdout}`);
   console.log(`stderr: ${result.stderr}`);
   return result;
@@ -68,7 +57,7 @@ describe('SWE Agent Orchestration', () => {
   });
 
   it('should transition from [NO_STATE] to INITIALIZING', async () => {
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     // Verify output
     expect(stdout).toContain('Please read the plan file');
@@ -95,7 +84,7 @@ describe('SWE Agent Orchestration', () => {
     );
 
     await expect(
-      simulateAgentTurn('submit_work', [], testDir),
+      simulateAgentTurn('submit_work', {}, testDir),
     ).rejects.toThrow();
 
     const state = JSON.parse(
@@ -112,7 +101,7 @@ describe('SWE Agent Orchestration', () => {
     const statePath = path.join(testDir, 'ORCHESTRATION_STATE.json');
     await fs.writeFile(statePath, JSON.stringify({ status: 'EXECUTING_TDD' }));
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     expect(stdout).toContain('Stale session cleaned. Please start again.');
     // Verify the stale state file is deleted
@@ -130,7 +119,7 @@ describe('SWE Agent Orchestration', () => {
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
     expect(stdout).toContain('Code review approved');
   });
 
@@ -149,7 +138,7 @@ describe('SWE Agent Orchestration', () => {
     };
     await fs.writeFile(activePRPath, JSON.stringify(prContent));
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     expect(stdout).toContain('Do the thing');
   });
@@ -174,9 +163,11 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD' }),
     );
 
+
+
     await simulateAgentTurn(
       'submit_work',
-      ['"echo success"', 'PASS'],
+      { test_command: 'echo success', expectation: 'PASS' },
       testDir,
       {
         env: { SKIP_PREFLIGHT: 'true' },
@@ -212,7 +203,10 @@ describe('SWE Agent Orchestration', () => {
     );
 
     // Simulate a green step that unexpectedly fails
-    await simulateAgentTurn('submit_work', ['"exit 1"', 'PASS'], testDir);
+    await simulateAgentTurn(
+      'submit_work',
+      { test_command: 'exit 1', expectation: 'PASS' },
+      testDir);
 
     const state = JSON.parse(
       await fs.readFile(
@@ -248,7 +242,7 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
     expect(stdout).toContain('A test failed unexpectedly');
   });
 
@@ -279,7 +273,7 @@ describe('SWE Agent Orchestration', () => {
     // Simulate submitting a fix
     const { stdout } = await simulateAgentTurn(
       'submit_work',
-      ['"echo success"'],
+      { test_command: 'echo success' },
       testDir,
     );
 
@@ -306,7 +300,7 @@ describe('SWE Agent Orchestration', () => {
     );
 
     await expect(
-      simulateAgentTurn('request_scope_reduction', [], testDir),
+      simulateAgentTurn('request_scope_reduction', {}, testDir),
     ).rejects.toThrow('This tool is locked.');
   });
 
@@ -328,9 +322,10 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+
     const { stdout } = await simulateAgentTurn(
       'request_scope_reduction',
-      [],
+      {},
       testDir,
     );
 
@@ -358,7 +353,7 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify(updatedPR),
     );
 
-    const { stdout } = await simulateAgentTurn('submit_work', [], testDir);
+    const { stdout } = await simulateAgentTurn('submit_work', {}, testDir);
     expect(stdout).toContain('Your goal is to complete the next TDD step');
   });
 
@@ -383,7 +378,7 @@ describe('SWE Agent Orchestration', () => {
     try {
       await simulateAgentTurn(
         'escalate_for_external_help',
-        ['"my markdown report"'],
+        { markdown_report: '"my markdown report"' },
         testDir,
       );
     } catch (e) {
@@ -426,9 +421,10 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
+
     const { stdout } = await simulateAgentTurn(
       'get_task',
-      [],
+      {},
       testDir,
     );
     expect(stdout).toContain('You have made numerous attempts');
@@ -449,7 +445,7 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD' })
     );
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     // Verify output
     expect(stdout).toContain(
@@ -481,7 +477,7 @@ describe('SWE Agent Orchestration', () => {
       mode: 0o755,
     });
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     // Verify output
     expect(stdout).toContain(
@@ -512,9 +508,11 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ tasks: [] }),
     );
 
+
+
     // Simulate a merge conflict
     try {
-      await simulateAgentTurn('submit_work', ['"exit 1"'], testDir);
+      await simulateAgentTurn('submit_work', { test_command: 'exit 1' }, testDir);
     } catch (e) {
       expect(e.code).toBe(1);
     }
@@ -534,19 +532,9 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'HALTED' }),
     );
 
-    await expect(simulateAgentTurn('get_task', [], testDir)).rejects.toThrow(
+    await expect(simulateAgentTurn('get_task', {}, testDir)).rejects.toThrow(
       'Command failed',
     );
-  });
-
-  it('should use mocked commands when provided', async () => {
-    const mocks = {
-      'get_task.sh': 'echo "mocked output"',
-    };
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir, {
-      mocks,
-    });
-    expect(stdout).toContain('mocked output');
   });
 
   it('should mark a green TDD step as DONE after a successful run', async () => {
@@ -569,9 +557,11 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD' }),
     );
 
+
+
     await simulateAgentTurn(
       'submit_work',
-      ['"echo success"', 'PASS'],
+      { test_command: 'echo success', expectation: 'PASS' },
       testDir,
       {
         env: { SKIP_PREFLIGHT: 'true' },
@@ -613,7 +603,7 @@ describe('SWE Agent Orchestration', () => {
     // Simulate a failing red step
     const { stdout } = await simulateAgentTurn(
       'submit_work',
-      ['"exit 1"', 'FAIL'],
+      { test_command: 'exit 1', expectation: 'FAIL' },
       testDir,
     );
 
@@ -641,7 +631,7 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'EXECUTING_TDD' }),
     );
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     expect(stdout).toContain('Make test fail');
   });
@@ -666,7 +656,7 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'AWAITING_ANALYSIS' }),
     );
 
-    await simulateAgentTurn('submit_work', ['SUCCESS'], testDir);
+    await simulateAgentTurn('submit_work', { analysis_decision: 'SUCCESS' }, testDir);
 
     const state = JSON.parse(
       await fs.readFile(
@@ -697,7 +687,7 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ status: 'AWAITING_ANALYSIS' }),
     );
 
-    await simulateAgentTurn('submit_work', ['FAILURE'], testDir);
+    await simulateAgentTurn('submit_work', { analysis_decision: 'FAILURE' }, testDir);
 
     const state = JSON.parse(
       await fs.readFile(
@@ -738,7 +728,7 @@ describe('SWE Agent Orchestration', () => {
     );
 
     await expect(
-      simulateAgentTurn('submit_work', ['"echo success"', 'PASS'], testDir, {
+      simulateAgentTurn('submit_work', { test_command: 'echo success', expectation: 'PASS' }, testDir, {
         env: { SKIP_PREFLIGHT: 'false' },
       }),
     ).rejects.toThrow();
@@ -782,9 +772,10 @@ describe('SWE Agent Orchestration', () => {
       JSON.stringify({ prTitle: 'test pr' }),
     );
 
+
     const { stdout } = await simulateAgentTurn(
       'submit_work',
-      [commitHash.trim()],
+      { commit_hash: commitHash.trim() },
       testDir,
     );
 
@@ -817,7 +808,7 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
-    const { stdout } = await simulateAgentTurn('get_task', [], testDir);
+    const { stdout } = await simulateAgentTurn('get_task', {}, testDir);
 
     // Verify state remains the same
     const state = JSON.parse(
@@ -850,7 +841,7 @@ describe('SWE Agent Orchestration', () => {
     );
 
     // Simulate submitting the updated plan
-    await simulateAgentTurn('submit_work', ['"Updated plan content"'], testDir);
+    await simulateAgentTurn('submit_work', { summary: '"Updated plan content"' }, testDir);
 
     // Verify state
     const state = JSON.parse(
@@ -870,7 +861,7 @@ describe('SWE Agent Orchestration', () => {
     );
 
     // Try to trigger a state change
-    await expect(simulateAgentTurn('get_task', [], testDir)).rejects.toThrow();
+    await expect(simulateAgentTurn('get_task', {}, testDir)).rejects.toThrow();
 
     // Verify state remains HALTED
     const state = JSON.parse(

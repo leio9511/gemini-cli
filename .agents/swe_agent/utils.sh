@@ -58,17 +58,31 @@ write_state() {
 }
 
 mark_current_step_done() {
-  task_index=$(jq 'map(.status == "TODO") | index(true)' <<< "$(jq -c '[.tasks[]]' ACTIVE_PR.json)")
-  step_index=$(jq --argjson i "$task_index" '.[$i].tdd_steps | map(.status == "TODO") | index(true)' <<< "$(jq -c '.tasks' ACTIVE_PR.json)")
+  # Get the path to the first TODO step
+  path_to_step=$(jq -r '
+    first(
+      .tasks | to_entries | .[] | select(.value.status == "TODO") |
+      .key as $task_idx | .value.tdd_steps | to_entries | .[] | select(.value.status == "TODO") |
+      "\(.key)"
+    )
+  ' ACTIVE_PR.json)
 
+  # Get the path to the first TODO task
+  path_to_task=$(jq -r '
+    first(
+      .tasks | to_entries | .[] | select(.value.status == "TODO") |
+      "\(.key)"
+    )
+  ' ACTIVE_PR.json)
 
-  jq --argjson ti "$task_index" --argjson si "$step_index" '.tasks[$ti].tdd_steps[$si].status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
+  # Update the status of that step to "DONE"
+  jq --argjson task_idx "$path_to_task" --argjson step_idx "$path_to_step" '
+    .tasks[$task_idx].tdd_steps[$step_idx].status = "DONE"
+  ' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
 }
 
 mark_current_task_done() {
-  task_index=$(jq 'map(.status == "TODO") | index(true)' <<< "$(jq -c '[.tasks[]]' ACTIVE_PR.json)")
-
-
+  task_index=$(jq '.tasks | to_entries | .[] | select(.value.status == "TODO") | .key' ACTIVE_PR.json)
   jq --argjson ti "$task_index" '.tasks[$ti].status = "DONE"' ACTIVE_PR.json > tmp.json && mv tmp.json ACTIVE_PR.json
 }
 

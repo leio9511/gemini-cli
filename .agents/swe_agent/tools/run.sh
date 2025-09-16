@@ -1,25 +1,22 @@
 #!/bin/bash
 set -e
 
-TOOL_NAME=$1
-shift
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
+TOOL_NAME=$1
 
 case "$TOOL_NAME" in
     get_task)
-        .agents/swe_agent/tools/get_task.sh "$@"
+        "$SCRIPT_DIR/get_task.sh"
         ;;
     submit_work)
-        .agents/swe_agent/tools/submit_work.sh "$@"
+        "$SCRIPT_DIR/submit_work.sh"
         ;;
     request_scope_reduction)
-        .agents/swe_agent/tools/request_scope_reduction.sh "$@"
+        "$SCRIPT_DIR/request_scope_reduction.sh"
         ;;
     escalate_for_external_help)
-        .agents/swe_agent/tools/escalate_for_external_help.sh "$@"
-        ;;
-    request_code_review)
-        .agents/swe_agent/tools/request_code_review.sh "$@"
+        "$SCRIPT_DIR/escalate_for_external_help.sh"
         ;;
     *)
         echo "Unknown tool: $TOOL_NAME" >&2

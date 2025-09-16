@@ -14,12 +14,14 @@ if [ "$debug_attempt_counter" -lt "$unlock_escalation_at" ]; then
     exit 1
 fi
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <markdown_report>" >&2
+TOOL_ARGS=$(cat)
+markdown_report=$(echo "$TOOL_ARGS" | jq -r '.markdown_report')
+
+if [ -z "$markdown_report" ]; then
+    echo "Usage: escalate_for_external_help '{\"markdown_report\": \"...\"}'" >&2
     exit 1
 fi
 
-
-echo "$1"
+echo "$markdown_report"
 exit 10
 

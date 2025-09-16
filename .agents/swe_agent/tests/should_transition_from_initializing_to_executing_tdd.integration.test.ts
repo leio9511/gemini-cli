@@ -15,31 +15,17 @@ const execAsync = promisify(exec);
 const BASE_DIR = path.resolve(__dirname, '..');
 const TOOLS_DIR = path.resolve(BASE_DIR, 'tools');
 
+
 async function simulateAgentTurn(
   tool: 'get_task' | 'submit_work' | 'request_scope_reduction',
-  args: string[] = [],
+  args: Record<string, any> = {},
   testDir: string,
   options: {
     env?: Record<string, string>;
-    mocks?: Record<string, (command: string, options: any, callback: (err: any, stdout: any, stderr: any) => void) => void>;
   } = {},
 ) {
-  let command = `bash ${path.resolve(TOOLS_DIR, `${tool}.sh`)} ${args.join(
-    ' ',
-  )}`;
-
-  // Check if the command is in mocks
-  if (options.mocks && options.mocks[command]) {
-    return new Promise((resolve, reject) => {
-        options.mocks[command](command, {}, (err, stdout, stderr) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve({ stdout, stderr });
-            }
-        });
-    });
-  }
+  const command = `bash ${path.resolve(TOOLS_DIR, 'run.sh')} ${tool}`;
+  const jsonArgs = JSON.stringify(args);
 
   const env = {
     ...process.env,
@@ -47,7 +33,7 @@ async function simulateAgentTurn(
     PATH: `${path.join(testDir, 'node_modules', '.bin')}:${process.env.PATH}`,
   };
   console.log(`Executing command: ${command}`);
-  const result = await execAsync(command, { cwd: testDir, env: env });
+  const result = await execAsync(`echo '${jsonArgs}' | ${command}`, { cwd: testDir, env: env, shell: '/bin/bash' });
   console.log(`stdout: ${result.stdout}`);
   console.log(`stderr: ${result.stderr}`);
   return result;
@@ -88,7 +74,7 @@ describe('SWE Agent Orchestration', () => {
       }),
     );
 
-    await simulateAgentTurn('submit_work', [], testDir);
+    await simulateAgentTurn('submit_work', {}, testDir);
 
     // Verify state
     const state = JSON.parse(
