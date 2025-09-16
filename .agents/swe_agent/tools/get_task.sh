@@ -66,7 +66,10 @@ Please read the plan file and select the next pull request to implement.
 
 First, you must read the plan file and select the next pull request to implement.
 
+
 Once you have identified the pull request, you must create a new file called \`ACTIVE_PR.json\` that contains the title, summary, and implementation tasks for the pull request.
+
+For each task you identify in the plan, you **MUST** create a standard three-step TDD cycle (Red, Green, Refactor) in the `tdd_steps` array. The `status` for all new tasks and steps must be set to `TODO`.
 
 The \`ACTIVE_PR.json\` file should be in the following format:
 
