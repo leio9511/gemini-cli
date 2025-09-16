@@ -67,9 +67,15 @@ Please read the plan file and select the next pull request to implement.
 First, you must read the plan file and select the next pull request to implement.
 
 
+
 Once you have identified the pull request, you must create a new file called \`ACTIVE_PR.json\` that contains the title, summary, and implementation tasks for the pull request.
 
-For each task you identify in the plan, you **MUST** create a standard three-step TDD cycle (Red, Green, Refactor) in the `tdd_steps` array. The `status` for all new tasks and steps must be set to `TODO`.
+Your primary job is to **categorize** the `Planned Implementation Tasks` from the plan into a valid TDD workflow.
+
+When creating the `ACTIVE_PR.json` file, you must create one `task` object for the entire PR. Inside that task, you must process **every single** `[ ] Task:` from the plan and convert it into a `tdd_step` object.
+- Analyze the task description to determine its type. Tasks about writing tests are `RED`, tasks about implementing logic are `GREEN`, and tasks about cleanup or final verification are `REFACTOR`.
+- The `description` for each `tdd_step` **MUST** be the verbatim text of the task from the plan.
+- Do not invent new steps. Your role is to categorize the existing plan.
 
 The \`ACTIVE_PR.json\` file should be in the following format:
 
