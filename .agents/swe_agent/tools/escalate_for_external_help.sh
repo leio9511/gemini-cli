@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+TOOL_ARGS=$(cat)
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+LOG_FILE="/tmp/swe_agent.log"
+echo "$TIMESTAMP / escalate_for_external_help / $TOOL_ARGS" >> "$LOG_FILE"
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 source "$SCRIPT_DIR/../utils.sh"
 
@@ -14,7 +19,6 @@ if [ "$debug_attempt_counter" -lt "$unlock_escalation_at" ]; then
     exit 1
 fi
 
-TOOL_ARGS=$(cat)
 markdown_report=$(echo "$TOOL_ARGS" | jq -r '.markdown_report')
 
 if [ -z "$markdown_report" ]; then

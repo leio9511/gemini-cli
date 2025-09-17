@@ -1,5 +1,11 @@
 #!/bin/bash
 
+TOOL_ARGS=$(cat)
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+LOG_FILE="/tmp/swe_agent.log"
+echo "$TIMESTAMP / get_task / $TOOL_ARGS" >> "$LOG_FILE"
+
+
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 
 if [ -n "$1" ]; then

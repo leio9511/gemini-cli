@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+TOOL_ARGS=$(cat)
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+LOG_FILE="/tmp/swe_agent.log"
+echo "$TIMESTAMP / submit_work / $TOOL_ARGS" >> "$LOG_FILE"
+
 if ! command -v jq &> /dev/null
 then
     echo "jq could not be found"
@@ -16,7 +21,6 @@ fi
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
 source "$SCRIPT_DIR/../utils.sh"
 
-TOOL_ARGS=$(cat)
 test_command=$(echo "$TOOL_ARGS" | jq -r '.test_command // empty')
 expectation=$(echo "$TOOL_ARGS" | jq -r '.expectation // empty')
 analysis_decision=$(echo "$TOOL_ARGS" | jq -r '.analysis_decision // empty')
