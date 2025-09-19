@@ -26,6 +26,10 @@ if [ -z "$markdown_report" ]; then
     exit 1
 fi
 
+write_state "status" "HALTED"
+
 echo "$markdown_report"
-exit 10
+echo ""
+echo "Escalation successful. Handing off to human operator. The agent's work is complete."
+exit 0
 

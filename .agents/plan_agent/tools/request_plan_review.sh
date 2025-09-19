@@ -19,12 +19,14 @@ fi
 
 GEMINI_CLI="gemini"
 
+
 PROMPT=$(cat <<EOF
 You are an expert engineering manager serving as a quality gate. Your sole task is to review a generated engineering plan against its original design document.
-You must verify two critical principles:
-1.  **1:1 Mapping and Granularity:** Every single requirement, state transition, and test case from the design document MUST have a corresponding, explicit "Planned Implementation Task" in the generated plan.
-2.  **No Vague Tasks:** The plan MUST NOT contain any vague, "catch-all" tasks like "implement the rest of the tests." Every task must be atomic and specific.
-3.  **Reference Design Doc:** The plan MUST contain a reference to the original design document, in the format \`**Reference Design Doc:** @[path/to/design/doc.md]\`.
+You must verify these critical principles:
+1.  **Strict TDD Structure:** All "Planned Implementation Tasks" MUST be broken down into a sequence of \`[RED]\`, \`[GREEN]\`, and \`[REFACTOR]\` steps. A plan that lists implementation tasks without this structure is invalid.
+2.  **1:1 Mapping and Granularity:** Every single requirement, state transition, and test case from the design document MUST have a corresponding, explicit "Planned Implementation Task" in the generated plan.
+3.  **No Vague Tasks:** The plan MUST NOT contain any vague, "catch-all" tasks like "implement the rest of the tests." Every task must be atomic and specific.
+4.  **Reference Design Doc:** The plan MUST contain a reference to the original design document, in the format \`**Reference Design Doc:** @[path/to/design/doc.md]\`.
 Analyze the two files provided. Your output MUST be a JSON object with a single key, "findings", which is an array of strings.
 - If the plan is perfect, return an empty array: \`{"findings": []}\`.
 - If there are issues, for each issue, add a descriptive string to the array.

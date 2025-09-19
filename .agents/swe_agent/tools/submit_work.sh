@@ -49,7 +49,7 @@ handle_awaiting_finalization_state() {
     if [ "$parent_count" == "1" ]; then
         write_state "last_commit_hash" "$commit_hash"
         write_state "status" "FINALIZE_COMPLETE"
-        echo "VERIFIED"
+        echo "VERIFIED. The squashed commit is valid. Call 'get_task' for your next instruction."
     fi
 }
 
@@ -85,7 +85,13 @@ _check_and_mark_task_done() {
   fi
 }
 
+
 status=$(read_state "status")
+
+if [ "$status" == "EXECUTING_TDD" ] && [ -z "$test_command" ]; then
+  echo "Error: Invalid submission. When in the 'EXECUTING_TDD' state, you MUST provide a 'test_command' for verification." >&2
+  exit 1
+fi
 
 case "$status" in
   "INITIALIZING")
@@ -144,7 +150,11 @@ if [ "$exit_code" -eq 0 ] && [ "$expectation" == "FAIL" ]; then
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "PASS" ]; then
   enter_debugging_state "Unexpected test failure"
 elif [ "$exit_code" -ne 0 ] && [ "$expectation" == "FAIL" ]; then
-  echo '{"status": "NEEDS_ANALYSIS"}'
+  jq -n \
+    --arg status "NEEDS_ANALYSIS" \
+    --arg instruction "Your test failed as expected. You must now analyze the test output to confirm it failed for the intended reason. Call 'submit_work' again providing your conclusion in the 'analysis_decision' parameter ('SUCCESS' or 'FAILURE')." \
+    '{status: $status, instruction: $instruction}'
+
   # This was a RED step, and the test failed as expected.
   # The goal of a RED step is to see a failing test, so this step is now DONE.
   mark_current_step_done

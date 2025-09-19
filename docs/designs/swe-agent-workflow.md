@@ -176,6 +176,7 @@ If the Instrumentation Loop is exhausted, the Orchestrator concludes that the ta
     > 2.  Break down the original task into the **smallest possible verifiable** Implementation Tasks, each with its own full Red-Green-Refactor cycle.
     > 3.  The **very last task** in your new plan **must be a 'Verification Task.'** This task's purpose is to prove that the preceding sub-tasks collectively achieve the original goal. Its `RED` step should be a recreation of the original task's `RED` step.
     > 4.  Update `ACTIVE_PR.json` to replace the original task with your new plan. The first new task must include a `breakdownHistory` object documenting the original goal and your justification."
+    > 5.  After updating the file, call `submit_work` with a summary of your changes to resume the TDD process.
 
 3.  **Agent Creates New Plan:** The agent updates `ACTIVE_PR.json` with a new list of tasks, including the final verification task. The tool then returns control to the agent.
     ```jsonc
@@ -232,9 +233,9 @@ This phase is a series of micro-tasks, guided by the orchestrator and executed b
 
 1.  **Instruction:** After the last task is verified, `get_task` instructs the agent to finalize the branch: "All tasks are complete. Squash all commits into a single commit using the PR title from `ACTIVE_PR.json` as the message."
 2.  **Agent Finalizes:** The agent reads `ACTIVE_PR.json` and executes the `git` commands to squash the commits. It then calls `submit_work`.
-3.  **Verification:** The `submit_work` tool deterministically verifies the branch state (e.g., by checking that `git rev-list --count main..HEAD` is `1`).
+3.  **Verification:** The `submit_work` tool deterministically verifies the branch state (e.g., by checking that `git rev-list --count main..HEAD` is `1`). Upon successful verification, the tool returns a confirmation and a clear JIT instruction: "VERIFIED. The squashed commit is valid. Call 'get_task' for your next instruction."
 4.  **Instruction:** `get_task` instructs the agent: "Update the master plan at `docs/Plan_Doc/Active_Plan.md` to mark this PR as `[DONE]` and append the final commit hash."
-5.  **Agent Updates Plan:** The agent, handling the unstructured markdown, updates the plan file and calls `submit_work`.
+5.  **Agent Updates Plan:** The agent, handling the unstructured markdown, updates the plan file and calls `submit_work` with a summary, as instructed.
 6.  **Transition to Merge:** When `submit_work` sees a submission confirming the plan update, it transitions the state to `MERGING_BRANCH`, handing off control to the final automated Git workflow phase.
 
 ### Phase 6: Automated Branch Merging and Workflow Continuation
@@ -247,7 +248,7 @@ This final phase replaces the manual handoff with a reliable, tool-driven proces
     c. Executes `git pull` to ensure the main branch is up-to-date.
     d. Executes `git merge --no-ff [current_pr_branch]`.
 2.  **Safety Check and Loop:** The orchestrator checks the exit code of the merge command.
-    - **If successful:** It proceeds to run `git branch -d [current_pr_branch]`, deletes the completed `ACTIVE_PR.json`, clears the `current_pr_branch` from the state file, and transitions the state back to `INITIALIZING`. The next call to `get_task` will start the entire workflow over for the next PR in the plan.
+    - **If successful:** It proceeds to run `git branch -d [current_pr_branch]`, deletes the completed `ACTIVE_PR.json`, clears the `current_pr_branch` from the state file, and transitions the state back to `INITIALIZING`. The agent is given an explicit instruction to begin the new cycle: "Branch merged and deleted. Call 'get_task' to begin the next PR." The next call to `get_task` will start the entire workflow over for the next PR in the plan.
     - **If it fails (merge conflict):** This is the critical safety gate. The tool will **HALT** the entire operation, transitioning to a terminal `HALTED` state. It will print a clear error message to the user: `ERROR: Automated merge failed due to a conflict. Please resolve the conflict in branch '[current_pr_branch]' and merge it to main manually. Then, delete the branch and the 'ACTIVE_PR.json' file before restarting the agent to continue with the next PR.` This requires human intervention to fix the repository before the agent can continue, preventing the agent from corrupting the repository state.
 
 ## 5. Tool Schemas
@@ -299,6 +300,10 @@ The design's reliability comes from a minimal, robust, and explicit toolset.
           "type": "STRING",
           "description": "The full, verbatim stdout and stderr from the test run.",
         },
+        "instruction": {
+          "type": "STRING",
+          "description": "A just-in-time, natural language instruction telling the agent exactly what to do next to resolve the current state."
+        }
       },
     },
   },

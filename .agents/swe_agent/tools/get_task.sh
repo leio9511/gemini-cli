@@ -31,7 +31,7 @@ status=$(read_state "status")
 if [ "$status" == "FINALIZE_COMPLETE" ]; then
     master_plan_path=$(jq -r '.masterPlanPath' ACTIVE_PR.json)
     last_commit_hash=$(read_state "last_commit_hash")
-    echo "Update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash: ${last_commit_hash}."
+    echo "Your task is to update the master plan at ${master_plan_path} to mark this PR as [DONE] and append the final commit hash: ${last_commit_hash}. After you have successfully patched the file, you must call the 'submit_work' tool with a summary of your action to finalize the process."
     exit 0
 fi
 
@@ -54,7 +54,7 @@ if [ "$status" == "PLAN_UPDATED" ]; then
     write_state "status" "INITIALIZING"
     release_lock
     trap - EXIT INT TERM
-    echo "Branch merged and deleted. Ready for next PR."
+    echo "Branch merged and deleted. Call 'get_task' to begin the next PR."
     exit 0
 fi
 
@@ -109,7 +109,7 @@ After you have created the file with the content above, you MUST call the `submi
 EOF
 
 if [ "$status" == "REPLANNING" ]; then
-    echo "Please provide an updated ACTIVE_PR.json file."
+    echo "Your task is to provide an updated ACTIVE_PR.json file based on the previous failure. After updating the file, call 'submit_work' with a summary of your changes."
     exit 0
 fi
 
@@ -132,7 +132,7 @@ if [ -f "ACTIVE_PR.json" ]; then
       release_lock
       trap - EXIT INT TERM
       pr_title=$(jq -r '.prTitle' ACTIVE_PR.json)
-      echo "Code review approved. All tasks are complete. Squash your commits into a single commit using the PR title '$pr_title' as the message."
+      echo "Code review approved. All tasks are complete. Your task is to squash your commits into a single commit using the PR title '$pr_title' as the message. After you have created the squashed commit, you must call the 'submit_work' tool, providing the final commit's SHA in the 'commit_hash' parameter for verification."
     fi
     exit 0
   fi
@@ -208,7 +208,7 @@ if [ "$last_completed_step" == "GREEN" ] || [ "$last_completed_step" == "REFACTO
     write_state "last_completed_step" "" # Clear the last completed step
     release_lock
     trap - EXIT INT TERM
-    echo "You have just completed a TDD step. This is a good time to create a safety checkpoint commit."
+    echo "You have successfully completed a TDD step. Your next task is to create a safety checkpoint commit. After you have run the 'git commit' command, call 'get_task' again to receive your next TDD step."
     exit 0
 fi
 
@@ -219,7 +219,7 @@ has_todo_tasks=$(jq -e '.tasks[] | select(.status=="TODO")' ACTIVE_PR.json > /de
 case "$has_todo_tasks" in
   "true")
     task_description=$(jq -r '(.tasks[] | select(.status=="TODO") | .tdd_steps[] | select(.status=="TODO")).description' ACTIVE_PR.json | head -n 1)
-    echo "Your goal is to complete the next TDD step: ${task_description}"
+    echo "Your goal is to complete the next TDD step: ${task_description}. After you have implemented the necessary code changes, you must verify your work by calling the 'submit_work' tool with the appropriate 'test_command' and your 'expectation' of the outcome ('PASS' or 'FAIL')."
     exit 0
     ;;
   "false")
