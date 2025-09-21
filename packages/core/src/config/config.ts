@@ -194,6 +194,7 @@ export interface ConfigParameters {
   ideClient: IdeClient;
   enableNextSpeakerCheck?: boolean;
   logSafePatchFailureFolder?: string;
+  toolCallTimeout?: number;
 }
 
 export class Config {
@@ -259,6 +260,7 @@ export class Config {
   private readonly sessionStateService: SessionStateService;
   private readonly logSafePatchFailureFolder: string | undefined;
   private readonly alwaysAllowedToolGroups = new Set<string>();
+  private readonly toolCallTimeout: number;
 
   constructor(params: ConfigParameters) {
     this.sessionId = params.sessionId;
@@ -321,6 +323,7 @@ export class Config {
     this.enableNextSpeakerCheck = params.enableNextSpeakerCheck ?? false;
     this.sessionStateService = new SessionStateService();
     this.logSafePatchFailureFolder = params.logSafePatchFailureFolder;
+    this.toolCallTimeout = params.toolCallTimeout ?? 180000;
 
     if (params.contextFileName) {
       setGeminiMdFilename(params.contextFileName);
@@ -669,6 +672,10 @@ export class Config {
 
   setToolGroupAlwaysAllowed(group: string): void {
     this.alwaysAllowedToolGroups.add(group);
+  }
+
+  getToolCallTimeout(): number {
+    return this.toolCallTimeout;
   }
 
   async getGitService(): Promise<GitService> {

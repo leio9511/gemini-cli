@@ -43,6 +43,7 @@ export class DiscoveredMCPTool extends BaseTool<ToolParams, ToolResult> {
       { type: Type.OBJECT }, // this is a dummy Schema for MCP, will be not be used to construct the FunctionDeclaration
       true, // isOutputMarkdown
       false, // canUpdateOutput
+      timeout,
     );
   }
 

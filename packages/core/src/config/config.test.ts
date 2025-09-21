@@ -349,4 +349,16 @@ describe('Server Config (config.ts)', () => {
       expect(config.getTelemetryOtlpEndpoint()).toBe(DEFAULT_OTLP_ENDPOINT);
     });
   });
+
+  describe('toolCallTimeout', () => {
+    it('should have a default toolCallTimeout', () => {
+      const config = new Config(baseParams);
+      expect(config.getToolCallTimeout()).toBe(180000);
+    });
+
+    it('should accept a custom toolCallTimeout', () => {
+      const config = new Config({ ...baseParams, toolCallTimeout: 1000 });
+      expect(config.getToolCallTimeout()).toBe(1000);
+    });
+  });
 });

@@ -108,8 +108,6 @@ export abstract class BaseTool<
    * @param name Internal name of the tool (used for API calls)
    * @param displayName User-friendly display name of the tool
    * @param description Description of what the tool does
-   * @param isOutputMarkdown Whether the tool's output should be rendered as markdown
-   * @param canUpdateOutput Whether the tool supports live (streaming) output
    * @param parameterSchema Open API 3.0 Schema defining the parameters
    */
   constructor(
@@ -120,6 +118,7 @@ export abstract class BaseTool<
     readonly parameterSchema: Schema,
     readonly isOutputMarkdown: boolean = true,
     readonly canUpdateOutput: boolean = false,
+    readonly timeout?: number,
   ) {}
 
   /**

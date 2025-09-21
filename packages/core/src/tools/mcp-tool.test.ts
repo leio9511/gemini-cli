@@ -115,6 +115,20 @@ describe('DiscoveredMCPTool', () => {
       );
       expect(tool.timeout).toBe(customTimeout);
     });
+
+    it('should pass the timeout to the BaseTool constructor', () => {
+      const customTimeout = 5000;
+      const tool = new DiscoveredMCPTool(
+        mockCallableToolInstance,
+        serverName,
+        serverToolName,
+        baseDescription,
+        inputSchema,
+        customTimeout,
+      );
+
+      expect(tool.timeout).toBe(customTimeout);
+    });
   });
 
   describe('execute', () => {
