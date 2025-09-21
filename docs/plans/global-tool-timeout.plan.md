@@ -6,9 +6,10 @@ This plan outlines the engineering steps required to implement a global and tool
 
 ---
 
+
 ## Phase 1: Configuration and Tooling Infrastructure
 
-### Pull Request #1: Add Timeout Properties to Config and BaseTool
+### Pull Request #1: Add Timeout Properties to Config and BaseTool [DONE] a872a1ee92bf02558e3078bc458b1b21ba8930f2
 
 - **PR Title:** feat(core): Add configuration for global and tool-specific timeouts
 - **Summary:** This PR lays the groundwork for the timeout feature by introducing the necessary configuration properties. It adds a `toolCallTimeout` to the global `Config` and an optional `timeout` override property to the `BaseTool` class and its derivatives, but does not implement the timeout enforcement logic itself.
