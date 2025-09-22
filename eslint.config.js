@@ -27,6 +27,8 @@ export default tseslint.config(
   {
     // Global ignores
     ignores: [
+      'docs/**',
+      '.agents/**',
       'node_modules/*',
       'eslint.config.js',
       'packages/cli/dist/**',
